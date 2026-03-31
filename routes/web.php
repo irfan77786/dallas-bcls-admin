@@ -15,7 +15,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\BookingController;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Artisan; 
 
 /*
 |--------------------------------------------------------------------------
