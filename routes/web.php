@@ -11,7 +11,7 @@ use App\Http\Controllers\RolesController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\QRController;
-use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardController;  
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\BookingController;
