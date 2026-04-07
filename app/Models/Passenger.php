@@ -14,13 +14,15 @@ class Passenger extends Model
 
     protected $fillable = [
         'booking_id',
-        'full_name',
+        'first_name',
+        'last_name',
         'email',
-        'phone',
-        'seat_category',
-        'seat_price',
-        'seat_quantity',
-        'total',
+        'phone_number',
+        'is_booking_for_others',
+        'booker_first_name',
+        'booker_last_name',
+        'booker_email',
+        'booker_number',
     ];
 
     public function booking()

@@ -9,8 +9,21 @@ class Booking extends Model
 {
     use HasFactory;
     protected $fillable = [
-        'user_id', 'vehicle_id', 'pickup_location', 'dropoff_location',
-        'pickup_date', 'pickup_time', 'total_price', 'payment_status','note'
+        'user_id',
+        'booking_id',
+        'booker_id',
+        'vehicle_id',
+        'pickup_location',
+        'dropoff_location',
+        'pickup_date',
+        'pickup_time',
+        'total_price',
+        'buffer_amount',
+        'payment_status',
+        'return_service_id',
+        'note',
+        'stripe_customer_id',
+        'stripe_payment_method_id',
     ];
 
     public function user() {
