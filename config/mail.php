@@ -97,4 +97,11 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Admin / booking copy address (same as customer site CreateBookingDocs job)
+    |--------------------------------------------------------------------------
+    */
+    'admin_email' => env('ADMIN_EMAIL_ADDRESS'),
+
 ];

@@ -15,6 +15,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\ReservationController;
 use Illuminate\Support\Facades\Artisan;
 
 /*
@@ -83,6 +84,12 @@ Route::group(['middleware' => 'auth'], function () {
 
     // Dashboard Route
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    Route::get('/reservation', [ReservationController::class, 'create'])->name('reservation.create');
+    Route::post('/reservation/quote', [ReservationController::class, 'quote'])->name('reservation.quote');
+    Route::post('/reservation/return-quote', [ReservationController::class, 'returnQuote'])->name('reservation.return-quote');
+    Route::post('/reservation', [ReservationController::class, 'store'])->name('reservation.store');
+    Route::post('/reservation/finalize', [ReservationController::class, 'finalizeReservation'])->name('reservation.finalize');
       Route::get('/vehicle', [DashboardController::class, 'vehicle'])->name('vehicle');
       Route::get('/vehicle/{id}/edit', [DashboardController::class, 'getVehicleData'])->name('vehicle.edit.ajax');
      Route::post('/update-vehicle', [DashboardController::class, 'updateVehicle'])->name('update.vehicle');

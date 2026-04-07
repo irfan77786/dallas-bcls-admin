@@ -41,6 +41,14 @@
                     </a>
                 </div>
 
+                <!-- Reservation (single-page booking) -->
+                <div class="nav-item {{ ($segment1 == 'reservation') ? 'active' : '' }}">
+                    <a href="{{ route('reservation.create') }}">
+                        <i class="ik ik-plus-square"></i>
+                        <span>{{ __('Reservation') }}</span>
+                    </a>
+                </div>
+
                 <!-- Manage Drivers -->
                 <!--<div class="nav-item {{ ($segment1 == 'manage-drivers') ? 'active' : '' }}">-->
                 <!--    <a href="#">-->
