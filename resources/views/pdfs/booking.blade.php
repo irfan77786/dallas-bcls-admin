@@ -5,7 +5,7 @@
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Booking Confirmation</title>
-  <link href="https://fonts.googleapis.com/css2?family=Abel&display=swap" rel="stylesheet">
+  {{-- DomPDF: use bundled DejaVu Sans only — webfonts (e.g. Abel) require storage/fonts cache and often fail. --}}
   <style>
     /* Load the font-face definition */
     @page {
@@ -13,7 +13,7 @@
     }
 
     body {
-      font-family: 'Abel', 'Helvetica', 'Arial', sans-serif;
+      font-family: DejaVu Sans, Helvetica, Arial, sans-serif;
       color: #333;
       line-height: 1.5;
       padding: 15px;
@@ -196,11 +196,19 @@
       <div style="display: table-row;">
         <div style="display: table-cell; vertical-align: middle; width: 62%;">
           @php
-          $logoUrl = 'https://dallasblackcarslimoservice.com/img/black-car-service-dallas-logo.webp';
-          $context = stream_context_create(['ssl' => ['verify_peer' => false, 'verify_peer_name' => false]]);
-          $logoData = base64_encode(file_get_contents($logoUrl, false, $context));
+          // Never fetch remote URLs during PDF render: slow/blocked networks hit max_execution_time.
+          $logoData = '';
+          $logoMime = 'image/png';
+          $localLogo = public_path('img/black-car-service-dallas-logo.png');
+          if (is_file($localLogo)) {
+              $logoData = base64_encode((string) file_get_contents($localLogo));
+          }
           @endphp
-          <img src="data:image/png;base64,{{ $logoData }}" alt="Logo" style="height: 60px;" />
+          @if($logoData !== '')
+          <img src="data:{{ $logoMime }};base64,{{ $logoData }}" alt="Logo" style="height: 60px;" />
+          @else
+          <div style="font-weight: bold; font-size: 14px;">Dallas Black Cars Limo Service</div>
+          @endif
         </div>
         <div style="text-align: right;">
           <div style="font-size: 12px; text-align: left;">
@@ -241,7 +249,7 @@
           @endif
           
           {{-- Hours --}}
-          @if($bookingData['hours'])
+          @if(!empty($bookingData['hours'] ?? null))
             <div class="row">
               <div class="col-sm-3"><strong class="mian-cc">Hours:</strong></div>
               <div class="col-sm-9">{{ $bookingData['hours'] ?? 'N/A' }}</div>

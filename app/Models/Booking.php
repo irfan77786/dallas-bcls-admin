@@ -8,6 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 class Booking extends Model
 {
     use HasFactory;
+
+    protected $casts = [
+        'from_admin_reservation' => 'boolean',
+    ];
+
     protected $fillable = [
         'user_id',
         'booking_id',
@@ -22,6 +27,13 @@ class Booking extends Model
         'payment_status',
         'return_service_id',
         'note',
+        'child_seat_type',
+        'child_seat_quantity',
+        'child_seat_fee',
+        'pax_count',
+        'luggage_count',
+        'service_option',
+        'from_admin_reservation',
         'stripe_customer_id',
         'stripe_payment_method_id',
     ];

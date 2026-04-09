@@ -7,6 +7,49 @@ use Illuminate\Database\Migrations\Migration;
 class CreatePermissionTables extends Migration
 {
     /**
+     * Only treat real BASE TABLEs as existing — Schema::hasTable() can be true for views,
+     * which breaks foreign keys (MySQL error 1824).
+     */
+    private function baseTableExists(string $table): bool
+    {
+        $connection = Schema::getConnection();
+        $database = $connection->getDatabaseName();
+        $prefix = $connection->getTablePrefix();
+        $fullName = $prefix.$table;
+
+        $row = $connection->selectOne(
+            'SELECT 1 AS ok FROM information_schema.tables WHERE table_schema = ? AND table_name = ? AND table_type = ? LIMIT 1',
+            [$database, $fullName, 'BASE TABLE']
+        );
+
+        return $row !== null;
+    }
+
+    /**
+     * Foreign keys require InnoDB. Legacy tables may be MyISAM.
+     */
+    private function ensureInnoDbBaseTable(string $table): void
+    {
+        if (! $this->baseTableExists($table)) {
+            return;
+        }
+
+        $connection = Schema::getConnection();
+        $database = $connection->getDatabaseName();
+        $prefix = $connection->getTablePrefix();
+        $fullName = $prefix.$table;
+
+        $row = $connection->selectOne(
+            'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? LIMIT 1',
+            [$database, $fullName]
+        );
+
+        if ($row && isset($row->ENGINE) && strtoupper((string) $row->ENGINE) !== 'INNODB') {
+            $connection->statement('ALTER TABLE `'.$fullName.'` ENGINE=InnoDB');
+        }
+    }
+
+    /**
      * Run the migrations.
      *
      * @return void
@@ -20,20 +63,28 @@ class CreatePermissionTables extends Migration
             throw new \Exception('Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding.');
         }
 
+        if (! $this->baseTableExists($tableNames['permissions'])) {
         Schema::create($tableNames['permissions'], function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->string('name');
             $table->string('guard_name');
             $table->timestamps();
         });
+        }
 
+        if (! $this->baseTableExists($tableNames['roles'])) {
         Schema::create($tableNames['roles'], function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->string('name');
             $table->string('guard_name');
             $table->timestamps();
         });
+        }
 
+        $this->ensureInnoDbBaseTable($tableNames['permissions']);
+        $this->ensureInnoDbBaseTable($tableNames['roles']);
+
+        if (! $this->baseTableExists($tableNames['model_has_permissions'])) {
         Schema::create($tableNames['model_has_permissions'], function (Blueprint $table) use ($tableNames, $columnNames) {
             $table->unsignedBigInteger('permission_id');
 
@@ -49,7 +100,9 @@ class CreatePermissionTables extends Migration
             $table->primary(['permission_id', $columnNames['model_morph_key'], 'model_type'],
                     'model_has_permissions_permission_model_type_primary');
         });
+        }
 
+        if (! $this->baseTableExists($tableNames['model_has_roles'])) {
         Schema::create($tableNames['model_has_roles'], function (Blueprint $table) use ($tableNames, $columnNames) {
             $table->unsignedBigInteger('role_id');
 
@@ -65,7 +118,9 @@ class CreatePermissionTables extends Migration
             $table->primary(['role_id', $columnNames['model_morph_key'], 'model_type'],
                     'model_has_roles_role_model_type_primary');
         });
+        }
 
+        if (! $this->baseTableExists($tableNames['role_has_permissions'])) {
         Schema::create($tableNames['role_has_permissions'], function (Blueprint $table) use ($tableNames) {
             $table->unsignedBigInteger('permission_id');
             $table->unsignedBigInteger('role_id');
@@ -82,6 +137,7 @@ class CreatePermissionTables extends Migration
 
             $table->primary(['permission_id', 'role_id'], 'role_has_permissions_permission_id_role_id_primary');
         });
+        }
 
         app('cache')
             ->store(config('permission.cache.store') != 'default' ? config('permission.cache.store') : null)
@@ -101,10 +157,10 @@ class CreatePermissionTables extends Migration
             throw new \Exception('Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding, or drop the tables manually.');
         }
 
-        Schema::drop($tableNames['role_has_permissions']);
-        Schema::drop($tableNames['model_has_roles']);
-        Schema::drop($tableNames['model_has_permissions']);
-        Schema::drop($tableNames['roles']);
-        Schema::drop($tableNames['permissions']);
+        Schema::dropIfExists($tableNames['role_has_permissions']);
+        Schema::dropIfExists($tableNames['model_has_roles']);
+        Schema::dropIfExists($tableNames['model_has_permissions']);
+        Schema::dropIfExists($tableNames['roles']);
+        Schema::dropIfExists($tableNames['permissions']);
     }
 }

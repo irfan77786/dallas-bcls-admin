@@ -44,7 +44,7 @@ class BookingPricingService
             $origin = $locations[$i];
             $destination = $locations[$i + 1];
 
-            $response = Http::get('https://maps.googleapis.com/maps/api/distancematrix/json', [
+            $response = Http::timeout(15)->get('https://maps.googleapis.com/maps/api/distancematrix/json', [
                 'origins' => $origin,
                 'destinations' => $destination,
                 'key' => $apiKey,

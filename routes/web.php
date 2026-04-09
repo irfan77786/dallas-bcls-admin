@@ -86,6 +86,7 @@ Route::group(['middleware' => 'auth'], function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('/reservation', [ReservationController::class, 'create'])->name('reservation.create');
+    Route::get('/reservation-v2', [ReservationController::class, 'createV2'])->name('reservation-v2');
     Route::post('/reservation/quote', [ReservationController::class, 'quote'])->name('reservation.quote');
     Route::post('/reservation/return-quote', [ReservationController::class, 'returnQuote'])->name('reservation.return-quote');
     Route::post('/reservation', [ReservationController::class, 'store'])->name('reservation.store');
