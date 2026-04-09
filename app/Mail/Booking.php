@@ -19,11 +19,15 @@ class Booking extends Mailable
 
     public $sendToBooker;
 
-    public function __construct($bookingData, $isAdmin = false, $sendToBooker = false)
+    /** Absolute path to generated PDF (preferred for attachment). */
+    public ?string $pdfPath;
+
+    public function __construct($bookingData, $isAdmin = false, $sendToBooker = false, ?string $pdfPath = null)
     {
         $this->bookingData = (array) $bookingData;
         $this->isAdmin = $isAdmin;
         $this->sendToBooker = $sendToBooker;
+        $this->pdfPath = $pdfPath;
     }
 
     public function envelope()
@@ -60,14 +64,24 @@ class Booking extends Mailable
 
     public function attachments()
     {
-        $path = public_path('pdfs/' . $this->bookingData['booking_id'] . '.pdf');
+        $path = $this->pdfPath;
+        if ($path === null || $path === '' || ! is_file($path)) {
+            $id = (string) ($this->bookingData['booking_id'] ?? 'booking');
+            $path = public_path('pdfs/' . $id . '.pdf');
+        }
+
         if (! is_file($path)) {
             return [];
         }
 
+        $basename = basename($path);
+        if ($basename === '' || $basename === '.' || $basename === '..') {
+            $basename = ($this->bookingData['booking_id'] ?? 'booking') . '.pdf';
+        }
+
         return [
             Attachment::fromPath($path)
-                ->as($this->bookingData['booking_id'] . '.pdf')
+                ->as($basename)
                 ->withMime('application/pdf'),
         ];
     }

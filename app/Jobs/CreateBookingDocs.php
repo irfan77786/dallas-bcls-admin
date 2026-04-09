@@ -17,6 +17,9 @@ class CreateBookingDocs
 
     public $customBookingId;
 
+    /** Absolute path to the PDF written for this booking (used for email attachment). */
+    private ?string $resolvedPdfPath = null;
+
     public function __construct($bookingData, $customBookingId)
     {
         $this->bookingData = $bookingData;
@@ -25,6 +28,10 @@ class CreateBookingDocs
 
     public function handle()
     {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(120);
+        }
+
         $this->writeBookingPdfIfPossible();
 
         $adminEmail = config('mail.admin_email', env('ADMIN_EMAIL_ADDRESS'));
@@ -51,7 +58,8 @@ class CreateBookingDocs
                 Mail::to($recipient['email'])->send(new \App\Mail\Booking(
                     $this->bookingData,
                     $recipient['isAdmin'],
-                    $recipient['isBooker']
+                    $recipient['isBooker'],
+                    $this->resolvedPdfPath
                 ));
                 Log::info('Booking confirmation email sent', [
                     'to' => $recipient['email'],
@@ -81,8 +89,16 @@ class CreateBookingDocs
                 mkdir($pdfsDirectory, 0777, true);
             }
 
+            $filename = (string) $this->customBookingId . '.pdf';
+            $fullPath = $pdfsDirectory . DIRECTORY_SEPARATOR . $filename;
+
             $pdf = Pdf::loadView('pdfs.booking', ['bookingData' => $this->bookingData]);
-            $pdf->save($pdfsDirectory . '/' . $this->customBookingId . '.pdf');
+            $binary = $pdf->output();
+            file_put_contents($fullPath, $binary);
+
+            if (is_file($fullPath) && filesize($fullPath) > 0) {
+                $this->resolvedPdfPath = $fullPath;
+            }
         } catch (\Throwable $e) {
             Log::error('CreateBookingDocs PDF generation failed (emails will still be attempted without attachment)', [
                 'booking_id' => $this->customBookingId,

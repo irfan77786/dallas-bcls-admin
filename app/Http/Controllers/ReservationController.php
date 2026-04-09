@@ -20,12 +20,25 @@ use Illuminate\Validation\Rule;
 
 class ReservationController extends Controller
 {
+    /** Flat add-on when child seat is selected (not multiplied by quantity). */
+    private const CHILD_SEAT_FLAT_FEE_USD = 20.0;
+
     public function __construct(
         private BookingPricingService $pricing
     ) {
     }
 
     public function create()
+    {
+        return $this->reservationView('pages.reservation');
+    }
+
+    public function createV2()
+    {
+        return $this->reservationView('pages.reservation-v2');
+    }
+
+    private function reservationView(string $view)
     {
         $vehicles = Vehicle::with(['carSeat'])->orderBy('vehicle_name')->get();
         $googleMapsApiKey = config('services.google_maps.api_key');
@@ -34,8 +47,9 @@ class ReservationController extends Controller
         $airports = Schema::hasTable('airports')
             ? Airport::query()->orderBy('id')->get()
             : collect();
+        $childSeatFlatFeeUsd = self::CHILD_SEAT_FLAT_FEE_USD;
 
-        return view('pages.reservation', compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airports'));
+        return view($view, compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airports', 'childSeatFlatFeeUsd'));
     }
 
     public function quote(Request $request)
@@ -137,7 +151,19 @@ class ReservationController extends Controller
             $request->merge(['meet_option' => null]);
         }
 
+        if ($request->input('luggage_count') === '' || $request->input('luggage_count') === null) {
+            $request->merge(['luggage_count' => null]);
+        }
+
+        if ($request->input('pax_count') === '' || $request->input('pax_count') === null) {
+            $request->merge(['pax_count' => 1]);
+        }
+
+        $this->mergeServiceOptionToServiceType($request);
+
         $trip = $this->validateTrip($request);
+
+        $saveWithoutPay = $request->boolean('save_without_pay');
 
         $stripeSecret = config('services.stripe.secret');
         $rules = [
@@ -146,6 +172,7 @@ class ReservationController extends Controller
             'last_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'number' => ['required', 'string', 'max:30'],
+            'custom_total_price' => ['nullable', 'numeric', 'min:0.01'],
             'booking_for_someone_else' => ['nullable', 'boolean'],
             'booker_first_name' => [Rule::requiredIf(fn () => $request->boolean('booking_for_someone_else')), 'nullable', 'string', 'max:255'],
             'booker_last_name' => [Rule::requiredIf(fn () => $request->boolean('booking_for_someone_else')), 'nullable', 'string', 'max:255'],
@@ -159,8 +186,25 @@ class ReservationController extends Controller
             'return_pickup_date' => [Rule::requiredIf(fn () => $request->boolean('return_service') && $request->input('service_type') === 'pointToPoint'), 'nullable', 'date_format:Y-m-d'],
             'return_pickup_time' => [Rule::requiredIf(fn () => $request->boolean('return_service') && $request->input('service_type') === 'pointToPoint'), 'nullable', 'date_format:H:i'],
             'note' => ['nullable', 'string', 'max:1000'],
+            'child_seat_required' => ['nullable', 'boolean'],
+            'child_seat_type' => [
+                Rule::requiredIf(fn () => $request->boolean('child_seat_required')),
+                'nullable',
+                'string',
+                Rule::in(['forward_toddler', 'rear_infant', 'booster']),
+            ],
+            'child_seat_quantity' => [
+                Rule::requiredIf(fn () => $request->boolean('child_seat_required')),
+                'nullable',
+                'integer',
+                'min:1',
+                'max:20',
+            ],
+            'pax_count' => ['required', 'integer', 'min:1', 'max:99'],
+            'luggage_count' => ['nullable', 'integer', 'min:0', 'max:99'],
+            'service_option' => ['required', 'string', Rule::in(['from_airport', 'to_airport', 'point_to_point', 'hourly_as_directed'])],
         ];
-        if ($stripeSecret) {
+        if ($stripeSecret && ! $saveWithoutPay) {
             $rules['payment_method_id'] = ['required', 'string'];
         }
         $validated = $request->validate($rules);
@@ -223,12 +267,24 @@ class ReservationController extends Controller
             $returnPrice = (float) $returnBreakdown['price'];
         }
 
-        $totalPrice = round($basePrice + $returnPrice, 2);
+        $calculatedTotalPrice = round($basePrice + $returnPrice, 2);
+        $baseTripTotal = array_key_exists('custom_total_price', $validated) && $validated['custom_total_price'] !== null
+            ? round((float) $validated['custom_total_price'], 2)
+            : $calculatedTotalPrice;
+
+        $wantsChildSeat = $request->boolean('child_seat_required');
+        $childSeatType = $wantsChildSeat ? ($validated['child_seat_type'] ?? null) : null;
+        $childSeatQty = $wantsChildSeat ? ($validated['child_seat_quantity'] ?? null) : null;
+        $childSeatFee = ($wantsChildSeat && $childSeatType && $childSeatQty)
+            ? round(self::CHILD_SEAT_FLAT_FEE_USD, 2)
+            : 0.0;
+
+        $totalPrice = round($baseTripTotal + $childSeatFee, 2);
         $forOthers = $request->boolean('booking_for_someone_else');
         $wantsFlightFields = $request->boolean('no_flight_info');
 
         try {
-            $booking = DB::transaction(function () use ($trip, $validated, $vehicle, $breakdown, $returnBreakdown, $totalPrice, $forOthers, $returnLeg, $wantsFlightFields) {
+            $booking = DB::transaction(function () use ($trip, $validated, $vehicle, $breakdown, $returnBreakdown, $totalPrice, $forOthers, $returnLeg, $wantsFlightFields, $childSeatFee, $childSeatType, $childSeatQty) {
                 $booker = null;
                 if ($forOthers) {
                     $booker = Booker::create([
@@ -268,6 +324,15 @@ class ReservationController extends Controller
                     'payment_status' => 'Pending',
                     'return_service_id' => $returnServiceId,
                     'note' => $validated['note'] ?? null,
+                    'child_seat_type' => $childSeatFee > 0 ? $childSeatType : null,
+                    'child_seat_quantity' => $childSeatFee > 0 ? (int) $childSeatQty : null,
+                    'child_seat_fee' => $childSeatFee > 0 ? $childSeatFee : null,
+                    'pax_count' => (int) $validated['pax_count'],
+                    'luggage_count' => array_key_exists('luggage_count', $validated) && $validated['luggage_count'] !== null
+                        ? (int) $validated['luggage_count']
+                        : null,
+                    'service_option' => $validated['service_option'],
+                    'from_admin_reservation' => true,
                 ]);
 
                 $passenger = $booking->passengers()->create([
@@ -329,6 +394,20 @@ class ReservationController extends Controller
         }
 
         $passenger = $booking->passengers->first();
+
+        if ($saveWithoutPay) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'booking_id' => $booking->booking_id,
+                    'redirect' => route('bookings.show', $booking->id),
+                ]);
+            }
+
+            return redirect()
+                ->route('bookings.show', $booking->id)
+                ->with('success', 'Reservation #' . $booking->booking_id . ' saved (no payment, no emails sent).');
+        }
 
         if ($stripeSecret) {
             try {
@@ -565,11 +644,16 @@ class ReservationController extends Controller
                 'pickup_date' => $pickupDate,
                 'pickup_time' => $pickupTime,
                 'vehicle_type' => $booking->vehicle?->vehicle_name ?? 'Standard',
-                'passengers' => 1,
+                'passengers' => $booking->pax_count ?? 1,
                 'total_amount' => $booking->total_price,
                 'buffer_amount' => $booking->buffer_amount,
                 'payment_status' => $booking->payment_status,
                 'special_instructions' => $booking->note,
+                'child_seat' => $booking->child_seat_fee ? [
+                    'type' => $booking->child_seat_type,
+                    'quantity' => $booking->child_seat_quantity,
+                    'fee' => $booking->child_seat_fee,
+                ] : null,
                 'flight_details' => $fd ? [
                     'passenger_id' => $fd->passenger_id,
                     'pickup_flight_details' => $fd->pickup_flight_details,
@@ -624,6 +708,29 @@ class ReservationController extends Controller
             'pickup' => (string) ($trip['dropoff_location'] ?? ''),
             'dropoff' => (string) ($trip['pickup_location'] ?? ''),
         ];
+    }
+
+    /**
+     * Maps admin service dropdown to pricing/trip validation (point-to-point vs hourly).
+     * Legacy reservation form sends only `service_type` (radios); v2 sends `service_option`.
+     */
+    private function mergeServiceOptionToServiceType(Request $request): void
+    {
+        $option = $request->input('service_option');
+        if ($option !== null && $option !== '') {
+            $request->merge([
+                'service_type' => $option === 'hourly_as_directed' ? 'hourlyHire' : 'pointToPoint',
+            ]);
+
+            return;
+        }
+
+        $st = $request->input('service_type');
+        if ($st === 'hourlyHire') {
+            $request->merge(['service_option' => 'hourly_as_directed']);
+        } elseif ($st === 'pointToPoint' || (is_string($st) && $st !== '')) {
+            $request->merge(['service_option' => 'point_to_point']);
+        }
     }
 
     private function validateTrip(Request $request): array

@@ -30,6 +30,10 @@ class CreateOauthRefreshTokensTable extends Migration
      */
     public function up()
     {
+        if ($this->schema->hasTable('oauth_refresh_tokens')) {
+            return;
+        }
+
         $this->schema->create('oauth_refresh_tokens', function (Blueprint $table) {
             $table->string('id', 100)->primary();
             $table->string('access_token_id', 100);
