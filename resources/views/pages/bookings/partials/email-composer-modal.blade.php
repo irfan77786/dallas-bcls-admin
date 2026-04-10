@@ -30,19 +30,19 @@
                         </div>
                     @endif
 
-                    <div class="px-3 pt-3 pb-2">
+                    <!-- <div class="px-3 pt-3 pb-2">
                         <label class="small text-muted font-weight-bold text-uppercase mb-2" style="letter-spacing: .05em;">Template</label>
                         <select class="form-control rounded-lg border-secondary" disabled title="Reserved for future templates">
                             <option>Standard confirmation</option>
                         </select>
-                    </div>
+                    </div> -->
 
                     <div class="px-3 py-2">
                         <div class="rounded-lg border" style="border-color: #e2e8f0 !important;">
-                            <div class="px-3 py-2 border-bottom font-weight-bold text-dark" style="background: #f8fafc;">
+                            <!-- <div class="px-3 py-2 border-bottom font-weight-bold text-dark" style="background: #f8fafc;">
                                 <i class="ik ik-users text-primary mr-1"></i> Customer-side recipients
                                 <span class="badge badge-light border text-muted font-weight-normal ml-1">confirmation email</span>
-                            </div>
+                            </div> -->
                             <div class="p-2 p-md-3 bg-white">
                                 @foreach ([
                                     1 => ['label' => 'B/C', 'hint' => 'Billing / company'],
@@ -65,7 +65,7 @@
                                         </div>
                                         <div class="col-12 col-md-3 text-md-right">
                                             <div class="custom-control custom-checkbox d-inline-block">
-                                                <input type="checkbox" class="custom-control-input" name="customer_send_{{ $idx }}" id="customer_send_{{ $idx }}" value="1" {{ old('customer_send_'.$idx, $idx === 2 ? '1' : '') ? 'checked' : '' }}>
+                                                <input type="checkbox" class="custom-control-input" name="customer_send_{{ $idx }}" id="customer_send_{{ $idx }}" value="1" {{ old('customer_send_'.$idx) ? 'checked' : '' }}>
                                                 <label class="custom-control-label small font-weight-bold" for="customer_send_{{ $idx }}">Send</label>
                                             </div>
                                         </div>
@@ -80,10 +80,10 @@
 
                     <div class="px-3 py-2">
                         <div class="rounded-lg border" style="border-color: #e2e8f0 !important;">
-                            <div class="px-3 py-2 border-bottom font-weight-bold text-dark" style="background: #fffbeb;">
+                            <!-- <div class="px-3 py-2 border-bottom font-weight-bold text-dark" style="background: #fffbeb;">
                                 <i class="ik ik-shield text-warning mr-1"></i> Admin-side recipients
                                 <span class="badge badge-light border text-muted font-weight-normal ml-1">internal notification</span>
-                            </div>
+                            </div> -->
                             <div class="p-2 p-md-3 bg-white">
                                 @foreach ([
                                     1 => ['label' => 'Aff', 'hint' => 'Affiliate / partner'],

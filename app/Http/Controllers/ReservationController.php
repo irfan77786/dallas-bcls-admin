@@ -31,7 +31,7 @@ class ReservationController extends Controller
 
     public function create()
     {
-        return $this->reservationView('pages.reservation');
+        return $this->reservationView('pages.reservation-v2');
     }
 
     public function createV2()
@@ -39,7 +39,7 @@ class ReservationController extends Controller
         return $this->reservationView('pages.reservation-v2');
     }
 
-    private function reservationView(string $view)
+    private function reservationView(string $view, string $pageTitle = 'Reservation')
     {
         $vehicles = Vehicle::with(['carSeat'])->orderBy('vehicle_name')->get();
         $googleMapsApiKey = config('services.google_maps.api_key');
@@ -50,7 +50,7 @@ class ReservationController extends Controller
             : collect();
         $childSeatFlatFeeUsd = self::CHILD_SEAT_FLAT_FEE_USD;
 
-        return view($view, compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airports', 'childSeatFlatFeeUsd'));
+        return view($view, compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airports', 'childSeatFlatFeeUsd', 'pageTitle'));
     }
 
     public function quote(Request $request)
