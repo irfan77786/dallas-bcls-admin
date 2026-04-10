@@ -3,9 +3,14 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Http;
+use App\Mail\BookingReservationComposerMail;
 use App\Models\Booking;
+use App\Services\BookingEmailPayloadBuilder;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class BookingController extends Controller
 {
@@ -59,13 +64,151 @@ public function show($id)
     }
 
     return view('pages.bookings.show', compact('booking', 'travelInfo'));
-}
+    }
 
+    /**
+     * Send customer-style and admin-style booking emails with PDF (after “save without pay”).
+     */
+    public function sendComposerEmails(Request $request, $id)
+    {
+        $booking = Booking::with([
+            'vehicle',
+            'passengers.flightDetail',
+            'booker',
+            'returnService',
+            'breakdown',
+        ])->findOrFail($id);
 
-    
-    
-    
-private function getDistanceBetweenAddresses(string $origin, string $destination): ?float
+        if (! $booking->from_admin_reservation) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email composer is only available for bookings created from the admin reservation form.',
+                ], 403);
+            }
+            abort(403, 'Email composer is only available for bookings created from the admin reservation form.');
+        }
+
+        $request->validate([
+            'personal_message' => ['nullable', 'string', 'max:500'],
+            'customer_email_1' => ['nullable', 'email'],
+            'customer_email_2' => ['nullable', 'email'],
+            'customer_email_3' => ['nullable', 'email'],
+            'admin_email_1' => ['nullable', 'email'],
+            'admin_email_2' => ['nullable', 'email'],
+            'admin_email_3' => ['nullable', 'email'],
+        ]);
+
+        $customerRecipients = [];
+        $adminRecipients = [];
+
+        for ($i = 1; $i <= 3; $i++) {
+            if ($request->boolean("customer_send_$i")) {
+                $email = trim((string) $request->input("customer_email_$i"));
+                if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    return $this->composerErrorResponse($request, [
+                        "customer_email_$i" => ['Enter a valid email when “Send” is checked for this row.'],
+                    ]);
+                }
+                $customerRecipients[] = $email;
+            }
+        }
+
+        for ($i = 1; $i <= 3; $i++) {
+            if ($request->boolean("admin_send_$i")) {
+                $email = trim((string) $request->input("admin_email_$i"));
+                if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    return $this->composerErrorResponse($request, [
+                        "admin_email_$i" => ['Enter a valid email when “Send” is checked for this row.'],
+                    ]);
+                }
+                $adminRecipients[] = $email;
+            }
+        }
+
+        if ($customerRecipients === [] && $adminRecipients === []) {
+            return $this->composerErrorResponse($request, [
+                'recipients' => ['Select at least one recipient and provide a valid email.'],
+            ]);
+        }
+
+        try {
+            $bookingData = BookingEmailPayloadBuilder::build($booking);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->composerErrorResponse($request, [
+                'booking' => [$e->getMessage()],
+            ]);
+        }
+
+        $bookingData['personal_message'] = $request->input('personal_message') ?: null;
+
+        $dir = public_path('pdfs');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+
+        $pdfPath = $dir . DIRECTORY_SEPARATOR . $booking->booking_id . '-reservation-composer.pdf';
+
+        try {
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(120);
+            }
+            $pdf = Pdf::loadView('pdfs.booking-reservation', ['bookingData' => $bookingData]);
+            file_put_contents($pdfPath, $pdf->output());
+        } catch (\Throwable $e) {
+            Log::error('Booking composer PDF failed', ['booking_id' => $booking->booking_id, 'message' => $e->getMessage()]);
+            report($e);
+
+            return $this->composerErrorResponse($request, [
+                'pdf' => ['Could not generate PDF: ' . $e->getMessage()],
+            ]);
+        }
+
+        $attachPath = is_file($pdfPath) && filesize($pdfPath) > 0 ? $pdfPath : null;
+
+        $sent = 0;
+        foreach ($customerRecipients as $email) {
+            Mail::to($email)->send(new BookingReservationComposerMail($bookingData, false, false, $attachPath));
+            $sent++;
+        }
+        foreach ($adminRecipients as $email) {
+            Mail::to($email)->send(new BookingReservationComposerMail($bookingData, true, false, $attachPath));
+            $sent++;
+        }
+
+        $message = $sent . ' email(s) sent with booking PDF attached.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+            ]);
+        }
+
+        return redirect()
+            ->route('bookings.show', $booking->id)
+            ->with('success', $message);
+    }
+
+    /**
+     * @param  array<string, array<int, string>|string>  $errors
+     */
+    private function composerErrorResponse(Request $request, array $errors)
+    {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($errors)->flatten()->first() ?? 'Something went wrong.',
+                'errors' => $errors,
+            ], 422);
+        }
+
+        return back()->withErrors($errors)->withInput();
+    }
+
+    private function getDistanceBetweenAddresses(string $origin, string $destination): ?float
 {
     $apiKey = config('services.google_maps.api_key'); // Make sure you set this in config/services.php and .env
 

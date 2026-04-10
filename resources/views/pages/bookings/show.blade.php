@@ -5,10 +5,17 @@
 <div class="container mt-4">
     <a href="{{ route('bookings.index') }}" class="btn btn-outline-secondary mb-3">← Back to Bookings</a>
 
+    @if (session('success'))
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            {{ session('success') }}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        </div>
+    @endif
+
     <div class="card shadow">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap">
             <h4 class="mb-0">Booking #{{ $booking->id }}</h4>
-            <div class="d-flex ">
+            <div class="d-flex flex-wrap align-items-center">
                 @if($travelInfo)
                     <span class="mr-2 badge bg-{{ $travelInfo['type'] == 'hourly' ? 'warning' : 'info' }} text-dark">
                         {{ ucfirst(str_replace('_', ' ', $travelInfo['type'])) }} Booking
@@ -17,6 +24,11 @@
                 <span class="ml-2 badge bg-{{ $booking->payment_status == 'Paid' ? 'success' : 'danger' }}">
                     {{ $booking->payment_status }}
                 </span>
+                @if ($booking->from_admin_reservation)
+                    <button type="button" class="btn btn-sm btn-light text-primary font-weight-bold ml-2 mt-2 mt-md-0" data-toggle="modal" data-target="#modalBookingEmailComposer">
+                        <i class="ik ik-mail"></i> Send booking emails
+                    </button>
+                @endif
             </div>
             
         </div>
@@ -220,4 +232,8 @@
         </div>
     </div>
 </div>
+
+@if ($booking->from_admin_reservation)
+    @include('pages.bookings.partials.email-composer-modal')
+@endif
 @endsection
