@@ -1,5 +1,5 @@
 @extends('layouts.main')
-@section('title', 'Reservation V2')
+@section('title', $pageTitle ?? 'Reservation')
 
 @push('head')
 <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -317,7 +317,7 @@
     <div class="page-header">
         <div class="row align-items-end">
             <div class="col-lg-8">
-                <h2 class="mb-1">Reservation v2</h2>
+                <h2 class="mb-1">{{ $pageTitle ?? 'Reservation' }}</h2>
             </div>
         </div>
     </div>

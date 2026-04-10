@@ -42,7 +42,7 @@
                 </div>
 
                 <!-- Reservation (single-page booking) -->
-                <div class="nav-item {{ ($segment1 == 'reservation') ? 'active' : '' }}">
+                <div class="nav-item {{ in_array($segment1, ['reservation', 'reservation-v2'], true) ? 'active' : '' }}">
                     <a href="{{ route('reservation.create') }}">
                         <i class="ik ik-plus-square"></i>
                         <span>{{ __('Reservation') }}</span>
