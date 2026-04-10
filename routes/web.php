@@ -102,6 +102,7 @@ Route::group(['middleware' => 'auth'], function () {
       
     Route::get('bookings', [BookingController::class, 'index'])->name('bookings.index');
     Route::get('/bookings/{id}', [BookingController::class, 'show'])->name('bookings.show');
+    Route::post('/bookings/{id}/send-composer-emails', [BookingController::class, 'sendComposerEmails'])->name('bookings.send-composer-emails');
 
     // // User Management (only accessible to those with 'manage_user' permission)
     // Route::group(['middleware' => 'can:manage_user'], function () {
