@@ -21,8 +21,8 @@ use Illuminate\Validation\Rule;
 
 class ReservationController extends Controller
 {
-    /** Flat add-on when child seat is selected (not multiplied by quantity). */
-    private const CHILD_SEAT_FLAT_FEE_USD = 20.0;
+    /** USD per child seat; line total = this × `child_seat_quantity`. */
+    private const CHILD_SEAT_PRICE_PER_SEAT_USD = 20.0;
 
     public function __construct(
         private BookingPricingService $pricing
@@ -48,9 +48,9 @@ class ReservationController extends Controller
         $airports = Schema::hasTable('airports')
             ? Airport::query()->orderBy('id')->get()
             : collect();
-        $childSeatFlatFeeUsd = self::CHILD_SEAT_FLAT_FEE_USD;
+        $childSeatPricePerSeatUsd = self::CHILD_SEAT_PRICE_PER_SEAT_USD;
 
-        return view($view, compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airports', 'childSeatFlatFeeUsd', 'pageTitle'));
+        return view($view, compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airports', 'childSeatPricePerSeatUsd', 'pageTitle'));
     }
 
     public function quote(Request $request)
@@ -276,8 +276,11 @@ class ReservationController extends Controller
         $wantsChildSeat = $request->boolean('child_seat_required');
         $childSeatType = $wantsChildSeat ? ($validated['child_seat_type'] ?? null) : null;
         $childSeatQty = $wantsChildSeat ? ($validated['child_seat_quantity'] ?? null) : null;
-        $childSeatFee = ($wantsChildSeat && $childSeatType && $childSeatQty)
-            ? round(self::CHILD_SEAT_FLAT_FEE_USD, 2)
+        $childSeatQtyInt = ($wantsChildSeat && $childSeatQty !== null && $childSeatQty !== '')
+            ? max(1, (int) $childSeatQty)
+            : 0;
+        $childSeatFee = ($wantsChildSeat && $childSeatType && $childSeatQtyInt > 0)
+            ? round(self::CHILD_SEAT_PRICE_PER_SEAT_USD * $childSeatQtyInt, 2)
             : 0.0;
 
         $totalPrice = round($baseTripTotal + $childSeatFee, 2);

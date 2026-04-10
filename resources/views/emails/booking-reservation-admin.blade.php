@@ -11,7 +11,7 @@
 <body style="font-family: 'Abel', 'Helvetica', 'Arial', sans-serif; line-height: 1.6; color: #333333; margin: 0; padding: 0; background-color: #f4f4f4;">
     <div class="container" style="max-width: 600px; margin: 0 auto; padding: 6px; background-color: #ffffff;">
         <div class="header" style="padding: 20px 10px; text-align: center;">
-            <img src="{{ asset('/img/black-car-service-dallas-logo.png') }}" alt="Company Logo" style="max-width: 250px; margin-bottom: 10px; height: auto;">
+            <img src="https://dallasblackcarslimoservice.com/img/black-car-service-dallas-logo.webp" alt="Dallas Black Cars Limo Service" width="250" style="max-width: 250px; margin-bottom: 10px; height: auto; display: inline-block; border: 0;">
             <h2 style="margin: 0; font-size: 22px; color: #222;">Booking notification</h2>
             <p style="margin: 5px 0 0; font-size: 15px; color: #555;">New booking received from the reservation form.</p>
         </div>
