@@ -173,25 +173,6 @@
     .compact-select-option.selected {
         background: #f4f8fc;
     }
-    .compact-select-option-media {
-        width: 48px;
-        height: 48px;
-        border-radius: 10px;
-        object-fit: cover;
-        flex-shrink: 0;
-        background: #ecf0f4;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #7a8693;
-        font-size: 0.75rem;
-        overflow: hidden;
-    }
-    .compact-select-option-media img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
     .compact-select-option-main {
         font-weight: 600;
         line-height: 1.2;
@@ -575,13 +556,6 @@
                                                 $vehicleLabel = $v->vehicle_name . ' • ' . $v->number_of_passengers . ' pax • ' . $v->luggage_capacity . ' bags';
                                             @endphp
                                             <li class="compact-select-option {{ (string) old('vehicle_id') === (string) $v->id ? 'selected' : '' }}" data-value="{{ $v->id }}" data-label="{{ $vehicleLabel }}" role="option" aria-selected="{{ (string) old('vehicle_id') === (string) $v->id ? 'true' : 'false' }}">
-                                                <div class="compact-select-option-media">
-                                                    @if ($v->vehicle_image)
-                                                        <img src="{{ asset('storage/' . $v->vehicle_image) }}" alt="{{ $v->vehicle_name }}" loading="lazy">
-                                                    @else
-                                                        <span>No image</span>
-                                                    @endif
-                                                </div>
                                                 <div>
                                                     <div class="compact-select-option-main">{{ $v->vehicle_name }}</div>
                                                     <div class="compact-select-option-sub">{{ $v->number_of_passengers }} passengers • {{ $v->luggage_capacity }} luggage</div>
@@ -608,7 +582,7 @@
                         <div id="wrap-child-seat-qty" class="form-group col-md-6 {{ old('child_seat_type') ? '' : 'd-none' }}">
                             <label for="child_seat_quantity">Quantity <span class="text-danger">*</span></label>
                             <input type="number" class="form-control" id="child_seat_quantity" name="child_seat_quantity" min="1" max="20" step="1" value="{{ old('child_seat_quantity') }}" placeholder="How many">
-                            <small class="form-text text-muted">Adds ${{ number_format($childSeatFlatFeeUsd ?? 20, 0) }} to the total (flat fee).</small>
+                            <small class="form-text text-muted">${{ number_format($childSeatPricePerSeatUsd ?? 20, 0) }} per seat × quantity is added to the total.</small>
                         </div>
                     </div>
                     <div class="form-row">
@@ -896,7 +870,7 @@ window.initReservationPlaces = function () {
         return '$' + value.toFixed(2);
     }
 
-    var CHILD_SEAT_FLAT_FEE_USD = @json((float) ($childSeatFlatFeeUsd ?? 20));
+    var CHILD_SEAT_PRICE_PER_SEAT_USD = @json((float) ($childSeatPricePerSeatUsd ?? 20));
 
     function getChildSeatFeeUsd() {
         var req = document.getElementById('child_seat_required');
@@ -905,7 +879,7 @@ window.initReservationPlaces = function () {
         if (!req || !req.checked || !type || !type.value || !qtyInput) return 0;
         var q = parseInt(qtyInput.value, 10);
         if (isNaN(q) || q < 1) return 0;
-        return CHILD_SEAT_FLAT_FEE_USD;
+        return CHILD_SEAT_PRICE_PER_SEAT_USD * q;
     }
 
     function syncChildSeatSummary() {
