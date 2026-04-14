@@ -57,8 +57,11 @@
             </span>
         </td>
         <td>
-             <a href="{{ route('bookings.show', $booking->id) }}" class="btn btn-sm btn-primary">
-               <i class="ik ik-eye"></i>
+            <a href="{{ route('bookings.show', $booking->id) }}" class="btn btn-sm btn-primary" title="View booking">
+                <i class="ik ik-eye"></i>
+            </a>
+            <a href="{{ route('bookings.edit', $booking->id) }}" class="btn btn-sm btn-warning" title="Edit booking">
+                <i class="ik ik-edit-2"></i>
             </a>
         </td>
     </tr>

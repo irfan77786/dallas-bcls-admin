@@ -282,16 +282,36 @@
 
 @section('content')
 @php
-    $pickupFlightOld = old('pickup_flight_details');
-    $meetOld = old('meet_option');
-    $serviceOptionOld = old('service_option');
+    $formDefaults = $formDefaults ?? [];
+    $formAction = $formAction ?? route('reservation.store');
+    $formMethod = strtoupper($formMethod ?? 'POST');
+    $isEditMode = (bool) ($isEditMode ?? false);
+    $hasOldInput = session()->hasOldInput();
+    $formValue = function ($key, $default = null) use ($formDefaults, $hasOldInput) {
+        return $hasOldInput ? old($key) : data_get($formDefaults, $key, $default);
+    };
+    $formBool = function ($key, $default = false) use ($formValue) {
+        return in_array($formValue($key, $default), [true, 1, '1', 'true', 'on', 'yes'], true);
+    };
+    $pickupFlightOld = $formValue('pickup_flight_details');
+    $meetOld = $formValue('meet_option');
+    $serviceOptionOld = $formValue('service_option');
     if ($serviceOptionOld === null) {
-        $serviceOptionOld = old('service_type') === 'hourlyHire' ? 'hourly_as_directed' : 'point_to_point';
+        $serviceOptionOld = $formValue('service_type') === 'hourlyHire' ? 'hourly_as_directed' : 'point_to_point';
     }
-    $selectedVehicle = $vehicles->firstWhere('id', (int) old('vehicle_id'));
+    $selectedVehicle = $vehicles->firstWhere('id', (int) $formValue('vehicle_id'));
     $selectedVehicleLabel = $selectedVehicle
         ? $selectedVehicle->vehicle_name . ' • ' . $selectedVehicle->number_of_passengers . ' pax • ' . $selectedVehicle->luggage_capacity . ' bags'
         : 'Select vehicle';
+    $bookingForSomeoneElse = $formBool('booking_for_someone_else');
+    $returnServiceEnabled = $formBool('return_service');
+    $flightDetailsEnabled = $formBool('no_flight_info', ! $isEditMode);
+    $childSeatRequired = $formBool('child_seat_required');
+    $bookingPaymentStatus = strtolower(trim((string) ($bookingPaymentStatus ?? '')));
+    $paymentLockedStatuses = ['paid', 'authorized'];
+    $hasLockedPayment = in_array($bookingPaymentStatus, $paymentLockedStatuses, true);
+    $showPaymentSection = ! ($isEditMode && $hasLockedPayment);
+    $canChargeOnEdit = $isEditMode && ! $hasLockedPayment;
 @endphp
 
 <div class="container-fluid reservation-v2-shell">
@@ -320,27 +340,30 @@
                 <div class="reservation-v2-title">Reservation form</div>
             </div>
 
-            <form method="post" action="{{ route('reservation.store') }}" id="reservation-form" novalidate>
+            <form method="post" action="{{ $formAction }}" id="reservation-form" novalidate>
                 @csrf
-                <input type="hidden" name="is_airport" id="is_airport" value="{{ old('is_airport') ? '1' : '0' }}">
+                @if($formMethod !== 'POST')
+                    @method($formMethod)
+                @endif
+                <input type="hidden" name="is_airport" id="is_airport" value="{{ $formBool('is_airport') ? '1' : '0' }}">
 
                 <div class="reservation-v2-main-form">
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             <label>Passenger first name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="first_name" value="{{ old('first_name') }}" required>
+                            <input type="text" class="form-control" name="first_name" value="{{ $formValue('first_name') }}" required>
                         </div>
                         <div class="form-group col-md-6">
                             <label>Passenger last name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="last_name" value="{{ old('last_name') }}" required>
+                            <input type="text" class="form-control" name="last_name" value="{{ $formValue('last_name') }}" required>
                         </div>
                         <div class="form-group col-md-6">
                             <label>Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" name="email" value="{{ old('email') }}" required>
+                            <input type="email" class="form-control" name="email" value="{{ $formValue('email') }}" required>
                         </div>
                         <div class="form-group col-md-6">
                             <label>Phone <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="number" value="{{ old('number') }}" required>
+                            <input type="text" class="form-control" name="number" value="{{ $formValue('number') }}" required>
                         </div>
                     </div>
 
@@ -349,30 +372,30 @@
                             <label class="d-block">Reservation type</label>
                             <div class="inline-option-bar">
                                 <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input" id="booking_for_someone_else" name="booking_for_someone_else" value="1" @checked(old('booking_for_someone_else'))>
+                                    <input type="checkbox" class="custom-control-input" id="booking_for_someone_else" name="booking_for_someone_else" value="1" @checked($bookingForSomeoneElse)>
                                     <label class="custom-control-label" for="booking_for_someone_else">Booking for someone else</label>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div id="booker-fields" class="{{ old('booking_for_someone_else') ? '' : 'd-none' }}">
+                    <div id="booker-fields" class="{{ $bookingForSomeoneElse ? '' : 'd-none' }}">
                         <div class="form-row">
                             <div class="form-group col-md-6">
                                 <label>Booker first name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" name="booker_first_name" value="{{ old('booker_first_name') }}">
+                                <input type="text" class="form-control" name="booker_first_name" value="{{ $formValue('booker_first_name') }}">
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Booker last name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" name="booker_last_name" value="{{ old('booker_last_name') }}">
+                                <input type="text" class="form-control" name="booker_last_name" value="{{ $formValue('booker_last_name') }}">
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Booker email <span class="text-danger">*</span></label>
-                                <input type="email" class="form-control" name="booker_email" value="{{ old('booker_email') }}">
+                                <input type="email" class="form-control" name="booker_email" value="{{ $formValue('booker_email') }}">
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Booker phone <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" name="booker_number" value="{{ old('booker_number') }}">
+                                <input type="text" class="form-control" name="booker_number" value="{{ $formValue('booker_number') }}">
                             </div>
                         </div>
                     </div>
@@ -386,19 +409,19 @@
                     <div class="form-row">
                         <div class="form-group col-md-6 position-relative">
                             <label for="pickup_location">Pickup location <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="pickup_location" name="pickup_location" value="{{ old('pickup_location') }}" required placeholder="Address, airport, hotel..." autocomplete="off" spellcheck="false">
+                            <input type="text" class="form-control" id="pickup_location" name="pickup_location" value="{{ $formValue('pickup_location') }}" required placeholder="Address, airport, hotel..." autocomplete="off" spellcheck="false">
                             <div id="pickup-suggestions-reservation" class="location-suggestions" aria-live="polite"></div>
                         </div>
                         <div class="form-group col-md-6 position-relative" id="wrap-dropoff">
                             <label for="dropoff_location">Drop-off location <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="dropoff_location" name="dropoff_location" value="{{ old('dropoff_location') }}" placeholder="Address, airport, hotel..." autocomplete="off" spellcheck="false">
+                            <input type="text" class="form-control" id="dropoff_location" name="dropoff_location" value="{{ $formValue('dropoff_location') }}" placeholder="Address, airport, hotel..." autocomplete="off" spellcheck="false">
                             <div id="dropoff-suggestions-reservation" class="location-suggestions" aria-live="polite"></div>
                         </div>
                         <div class="form-group col-md-6 d-none" id="wrap-hours">
                             <label for="select_hours">Hours <span class="text-danger">*</span></label>
                             <select class="form-control" id="select_hours" name="select_hours">
                                 @for ($h = 1; $h <= 24; $h++)
-                                    <option value="{{ $h }}" @selected(old('select_hours', '3') == $h)>{{ $h }} hour(s)</option>
+                                    <option value="{{ $h }}" @selected($formValue('select_hours', '3') == $h)>{{ $h }} hour(s)</option>
                                 @endfor
                             </select>
                         </div>
@@ -407,11 +430,11 @@
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             <label for="pickup_date">Pickup date <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" id="pickup_date" name="pickup_date" value="{{ old('pickup_date') }}" required>
+                            <input type="date" class="form-control" id="pickup_date" name="pickup_date" value="{{ $formValue('pickup_date') }}" required>
                         </div>
                         <div class="form-group col-md-6">
                             <label for="pickup_time">Pickup time <span class="text-danger">*</span></label>
-                            <input type="time" class="form-control" id="pickup_time" name="pickup_time" value="{{ old('pickup_time') }}" required>
+                            <input type="time" class="form-control" id="pickup_time" name="pickup_time" value="{{ $formValue('pickup_time') }}" required>
                         </div>
                     </div>
 
@@ -420,19 +443,19 @@
                             <label class="d-block">Return trip</label>
                             <div class="inline-option-bar">
                                 <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input" id="return_service" name="return_service" value="1" @checked(old('return_service'))>
+                                    <input type="checkbox" class="custom-control-input" id="return_service" name="return_service" value="1" @checked($returnServiceEnabled)>
                                     <label class="custom-control-label" for="return_service">Add a return trip</label>
                                 </div>
                             </div>
-                            <div id="return-fields" class="mt-3 {{ old('return_service') ? '' : 'd-none' }}">
+                            <div id="return-fields" class="mt-3 {{ $returnServiceEnabled ? '' : 'd-none' }}">
                                 <div class="form-row">
                                     <div class="form-group col-md-6">
                                         <label for="return_pickup_date">Return pick-up date <span class="text-danger">*</span></label>
-                                        <input type="date" class="form-control" id="return_pickup_date" name="return_pickup_date" value="{{ old('return_pickup_date') }}">
+                                        <input type="date" class="form-control" id="return_pickup_date" name="return_pickup_date" value="{{ $formValue('return_pickup_date') }}">
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="return_pickup_time">Return pick-up time <span class="text-danger">*</span></label>
-                                        <input type="time" class="form-control" id="return_pickup_time" name="return_pickup_time" value="{{ old('return_pickup_time') }}">
+                                        <input type="time" class="form-control" id="return_pickup_time" name="return_pickup_time" value="{{ $formValue('return_pickup_time') }}">
                                     </div>
                                 </div>
                             </div>
@@ -441,7 +464,7 @@
                             <label class="d-block">Flight details</label>
                             <div class="inline-option-bar">
                                 <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input" id="no-flight-info-checkbox" name="no_flight_info" value="1" @checked(old('no_flight_info', true))>
+                                    <input type="checkbox" class="custom-control-input" id="no-flight-info-checkbox" name="no_flight_info" value="1" @checked($flightDetailsEnabled)>
                                     <label class="custom-control-label" for="no-flight-info-checkbox">I have my flight details</label>
                                 </div>
                             </div>
@@ -482,7 +505,7 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label for="flight_number">Flight number</label>
-                                <input type="text" class="form-control" id="flight_number" name="flight_number" value="{{ old('flight_number') }}" placeholder="e.g. AA123">
+                                <input type="text" class="form-control" id="flight_number" name="flight_number" value="{{ $formValue('flight_number') }}" placeholder="e.g. AA123">
                             </div>
                         </div>
                         <div class="form-row">
@@ -525,7 +548,7 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label for="note">Notes for the chauffeur</label>
-                                <input type="text" class="form-control" id="note" name="note" value="{{ old('note') }}" placeholder="Special requests, luggage, gate…">
+                                <input type="text" class="form-control" id="note" name="note" value="{{ $formValue('note') }}" placeholder="Special requests, luggage, gate…">
                             </div>
                         </div>
                     </div>
@@ -535,7 +558,7 @@
                             <span class="field-heading d-block font-weight-bold text-dark">Child seat</span>
                             <div class="inline-option-bar">
                                 <div class="custom-control custom-checkbox mb-0">
-                                    <input type="checkbox" class="custom-control-input" id="child_seat_required" name="child_seat_required" value="1" @checked(old('child_seat_required'))>
+                                    <input type="checkbox" class="custom-control-input" id="child_seat_required" name="child_seat_required" value="1" @checked($childSeatRequired)>
                                     <label class="custom-control-label font-weight-bold mb-0" for="child_seat_required">Child seat required</label>
                                 </div>
                             </div>
@@ -555,7 +578,7 @@
                                             @php
                                                 $vehicleLabel = $v->vehicle_name . ' • ' . $v->number_of_passengers . ' pax • ' . $v->luggage_capacity . ' bags';
                                             @endphp
-                                            <li class="compact-select-option {{ (string) old('vehicle_id') === (string) $v->id ? 'selected' : '' }}" data-value="{{ $v->id }}" data-label="{{ $vehicleLabel }}" role="option" aria-selected="{{ (string) old('vehicle_id') === (string) $v->id ? 'true' : 'false' }}">
+                                            <li class="compact-select-option {{ (string) $formValue('vehicle_id') === (string) $v->id ? 'selected' : '' }}" data-value="{{ $v->id }}" data-label="{{ $vehicleLabel }}" role="option" aria-selected="{{ (string) $formValue('vehicle_id') === (string) $v->id ? 'true' : 'false' }}">
                                                 <div>
                                                     <div class="compact-select-option-main">{{ $v->vehicle_name }}</div>
                                                     <div class="compact-select-option-sub">{{ $v->number_of_passengers }} passengers • {{ $v->luggage_capacity }} luggage</div>
@@ -564,35 +587,35 @@
                                         @endforeach
                                     </ul>
                                 </div>
-                                <input type="hidden" name="vehicle_id" id="vehicle-id" value="{{ old('vehicle_id') }}">
+                                <input type="hidden" name="vehicle_id" id="vehicle-id" value="{{ $formValue('vehicle_id') }}">
                             </div>
                             <small class="form-text text-muted">Required. Optional custom total is in Payment.</small>
                         </div>
                     </div>
-                    <div id="wrap-child-seat-fields" class="form-row {{ old('child_seat_required') ? '' : 'd-none' }}">
+                    <div id="wrap-child-seat-fields" class="form-row {{ $childSeatRequired ? '' : 'd-none' }}">
                         <div class="form-group col-md-6">
                             <label for="child_seat_type">Seat type</label>
                             <select class="form-control" id="child_seat_type" name="child_seat_type">
-                                <option value="" @selected(old('child_seat_type') === null || old('child_seat_type') === '')>Select seat type…</option>
-                                <option value="forward_toddler" @selected(old('child_seat_type') === 'forward_toddler')>Forward facing (Toddler)</option>
-                                <option value="rear_infant" @selected(old('child_seat_type') === 'rear_infant')>Rear facing (Infant)</option>
-                                <option value="booster" @selected(old('child_seat_type') === 'booster')>Booster seat</option>
+                                <option value="" @selected($formValue('child_seat_type') === null || $formValue('child_seat_type') === '')>Select seat type…</option>
+                                <option value="forward_toddler" @selected($formValue('child_seat_type') === 'forward_toddler')>Forward facing (Toddler)</option>
+                                <option value="rear_infant" @selected($formValue('child_seat_type') === 'rear_infant')>Rear facing (Infant)</option>
+                                <option value="booster" @selected($formValue('child_seat_type') === 'booster')>Booster seat</option>
                             </select>
                         </div>
-                        <div id="wrap-child-seat-qty" class="form-group col-md-6 {{ old('child_seat_type') ? '' : 'd-none' }}">
+                        <div id="wrap-child-seat-qty" class="form-group col-md-6 {{ $formValue('child_seat_type') ? '' : 'd-none' }}">
                             <label for="child_seat_quantity">Quantity <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="child_seat_quantity" name="child_seat_quantity" min="1" max="20" step="1" value="{{ old('child_seat_quantity') }}" placeholder="How many">
+                            <input type="number" class="form-control" id="child_seat_quantity" name="child_seat_quantity" min="1" max="20" step="1" value="{{ $formValue('child_seat_quantity') }}" placeholder="How many">
                             <small class="form-text text-muted">${{ number_format($childSeatPricePerSeatUsd ?? 20, 0) }} per seat × quantity is added to the total.</small>
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             <label for="pax_count"># of passengers <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="pax_count" name="pax_count" min="1" max="99" step="1" value="{{ old('pax_count', '1') }}" required placeholder="e.g. 2">
+                            <input type="number" class="form-control" id="pax_count" name="pax_count" min="1" max="99" step="1" value="{{ $formValue('pax_count', '1') }}" required placeholder="e.g. 2">
                         </div>
                         <div class="form-group col-md-6">
                             <label for="luggage_count">Luggage</label>
-                            <input type="number" class="form-control" id="luggage_count" name="luggage_count" min="0" max="99" step="1" value="{{ old('luggage_count') }}" placeholder="Number of bags">
+                            <input type="number" class="form-control" id="luggage_count" name="luggage_count" min="0" max="99" step="1" value="{{ $formValue('luggage_count') }}" placeholder="Number of bags">
                         </div>
                     </div>
                     <div class="form-row">
@@ -608,66 +631,111 @@
                     </div>
                 </div>
 
-                <div class="compact-group-payment">
-                    <h3 class="compact-group-title">Payment</h3>
-                    <div class="form-row">
-                        <div class="form-group col-md-6">
-                            <label for="custom_total_price">Custom payment amount</label>
-                            <input type="number" class="form-control" id="custom_total_price" name="custom_total_price" min="0.01" step="0.01" value="{{ old('custom_total_price') }}" placeholder="Optional custom amount">
-                            <small class="form-text text-muted">Leave blank to keep the system-calculated total based on the selected vehicle.</small>
-                        </div>
-                        <div class="form-group col-md-6">
-                            <div class="summary-box">
-                                <div id="summary-child-seat-line" class="d-none mb-3 pb-3 border-bottom">
-                                    <div class="d-flex justify-content-between align-items-baseline small">
-                                        <span class="text-muted">Child seat add-on</span>
-                                        <span class="font-weight-bold text-dark" id="summary-child-seat-amount">$0.00</span>
-                                    </div>
-                                </div>
-                                <div class="summary-box-label">Total to charge</div>
-                                <div class="summary-box-value" id="summary-total-display">Calculated on submit</div>
-                                <p class="summary-box-help mb-0" id="summary-total-help">Enter a custom amount to override the calculated vehicle fare.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    @if(!empty($stripeEnabled))
-                        <input type="hidden" name="payment_method_id" id="payment_method_id" value="">
+                @if($showPaymentSection)
+                    <div class="compact-group-payment">
+                        <h3 class="compact-group-title">Payment</h3>
                         <div class="form-row">
                             <div class="form-group col-md-6">
-                                <label for="card-name-reservation">Name on card <span class="text-danger">*</span></label>
-                                <input type="text" id="card-name-reservation" class="form-control" autocomplete="cc-name" placeholder="As shown on card" required>
+                                <label for="custom_total_price">Custom payment amount</label>
+                                <input type="number" class="form-control" id="custom_total_price" name="custom_total_price" min="0.01" step="0.01" value="{{ $formValue('custom_total_price') }}" placeholder="Optional custom amount">
+                                <small class="form-text text-muted">Leave blank to keep the system-calculated total based on the selected vehicle.</small>
                             </div>
                             <div class="form-group col-md-6">
-                                <label>Card details <span class="text-danger">*</span></label>
-                                <div id="reservation-card-element" class="form-control"></div>
-                                <div id="reservation-card-errors" class="text-danger small mt-1"></div>
+                                <div class="summary-box">
+                                    <div id="summary-child-seat-line" class="d-none mb-3 pb-3 border-bottom">
+                                        <div class="d-flex justify-content-between align-items-baseline small">
+                                            <span class="text-muted">Child seat add-on</span>
+                                            <span class="font-weight-bold text-dark" id="summary-child-seat-amount">$0.00</span>
+                                        </div>
+                                    </div>
+                                    <div class="summary-box-label">Total to charge</div>
+                                    <div class="summary-box-value" id="summary-total-display">Calculated on submit</div>
+                                    <p class="summary-box-help mb-0" id="summary-total-help">Enter a custom amount to override the calculated vehicle fare.</p>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="d-flex flex-wrap align-items-center" style="gap: 0.5rem;">
-                            <button type="button" class="btn btn-success btn-lg" id="btn-reservation-pay">
-                                <span id="btn-reservation-text"><i class="ik ik-check"></i> Pay &amp; create reservation</span>
-                                <span id="btn-reservation-spinner" class="spinner-border spinner-border-sm d-none ml-2 align-middle" role="status" aria-hidden="true"></span>
-                            </button>
-                            <button type="submit" name="save_without_pay" value="1" class="btn btn-outline-secondary btn-lg" id="btn-save-without-pay" formnovalidate title="Save booking only — no charge, no emails">
-                                Save without pay
-                            </button>
-                        </div>
-                    @else
-                        <div class="alert alert-info small">
-                            Add <code>STRIPE_KEY</code> and <code>STRIPE_SECRET</code> to <code>.env</code> to enable card authorization. Without Stripe, the booking is saved as <strong>Pending</strong>.
-                        </div>
-                        <div class="d-flex flex-wrap align-items-center" style="gap: 0.5rem;">
-                            <button type="submit" class="btn btn-success btn-lg" id="btn-reservation-submit-fallback">
-                                <i class="ik ik-check"></i> Create reservation
-                            </button>
-                            <button type="submit" name="save_without_pay" value="1" class="btn btn-outline-secondary btn-lg" id="btn-save-without-pay-fallback" formnovalidate title="Save booking only — no payment record, no emails">
-                                Save without pay
-                            </button>
-                        </div>
-                    @endif
-                </div>
+                        @if($isEditMode)
+                            @if($canChargeOnEdit && !empty($stripeEnabled))
+                                <div class="alert alert-info small">
+                                    This reservation is not paid yet. You can update the booking only, or charge the card and update the reservation in one step.
+                                </div>
+                                <input type="hidden" name="payment_method_id" id="payment_method_id" value="">
+                                <div class="form-row">
+                                    <div class="form-group col-md-6">
+                                        <label for="card-name-reservation">Name on card <span class="text-danger">*</span></label>
+                                        <input type="text" id="card-name-reservation" class="form-control" autocomplete="cc-name" placeholder="As shown on card">
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        <label>Card details <span class="text-danger">*</span></label>
+                                        <div id="reservation-card-element" class="form-control"></div>
+                                        <div id="reservation-card-errors" class="text-danger small mt-1"></div>
+                                    </div>
+                                </div>
+                            @elseif($canChargeOnEdit)
+                                <div class="alert alert-info small">
+                                    This reservation is not paid yet. Stripe is not configured, so only booking details can be updated from this screen.
+                                </div>
+                            @else
+                                <div class="alert alert-info small">
+                                    This reservation already has a paid or authorized payment. No new card charge can be created from this screen.
+                                </div>
+                            @endif
+                            <div class="d-flex flex-wrap align-items-center" style="gap: 0.5rem;">
+                                @if($canChargeOnEdit && !empty($stripeEnabled))
+                                    <button type="button" class="btn btn-primary btn-lg" id="btn-reservation-pay">
+                                        <span id="btn-reservation-text"><i class="ik ik-credit-card"></i> Pay &amp; update reservation</span>
+                                        <span id="btn-reservation-spinner" class="spinner-border spinner-border-sm d-none ml-2 align-middle" role="status" aria-hidden="true"></span>
+                                    </button>
+                                @endif
+                                <button type="submit" class="btn btn-success btn-lg" id="btn-reservation-update">
+                                    <i class="ik ik-save"></i> Update reservation
+                                </button>
+                            </div>
+                        @elseif(!empty($stripeEnabled))
+                            <input type="hidden" name="payment_method_id" id="payment_method_id" value="">
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label for="card-name-reservation">Name on card <span class="text-danger">*</span></label>
+                                    <input type="text" id="card-name-reservation" class="form-control" autocomplete="cc-name" placeholder="As shown on card" required>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label>Card details <span class="text-danger">*</span></label>
+                                    <div id="reservation-card-element" class="form-control"></div>
+                                    <div id="reservation-card-errors" class="text-danger small mt-1"></div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex flex-wrap align-items-center" style="gap: 0.5rem;">
+                                <button type="button" class="btn btn-success btn-lg" id="btn-reservation-pay">
+                                    <span id="btn-reservation-text"><i class="ik ik-check"></i> Pay &amp; create reservation</span>
+                                    <span id="btn-reservation-spinner" class="spinner-border spinner-border-sm d-none ml-2 align-middle" role="status" aria-hidden="true"></span>
+                                </button>
+                                <button type="submit" name="save_without_pay" value="1" class="btn btn-outline-secondary btn-lg" id="btn-save-without-pay" formnovalidate title="Save booking only — no charge, no emails">
+                                    Save without pay
+                                </button>
+                            </div>
+                        @else
+                            <div class="alert alert-info small">
+                                Add <code>STRIPE_KEY</code> and <code>STRIPE_SECRET</code> to <code>.env</code> to enable card authorization. Without Stripe, the booking is saved as <strong>Pending</strong>.
+                            </div>
+                            <div class="d-flex flex-wrap align-items-center" style="gap: 0.5rem;">
+                                <button type="submit" class="btn btn-success btn-lg" id="btn-reservation-submit-fallback">
+                                    <i class="ik ik-check"></i> Create reservation
+                                </button>
+                                <button type="submit" name="save_without_pay" value="1" class="btn btn-outline-secondary btn-lg" id="btn-save-without-pay-fallback" formnovalidate title="Save booking only — no payment record, no emails">
+                                    Save without pay
+                                </button>
+                            </div>
+                        @endif
+                    </div>
+                @elseif($isEditMode)
+                    <div class="mt-4 d-flex flex-wrap align-items-center" style="gap: 0.5rem;">
+                        <button type="submit" class="btn btn-success btn-lg" id="btn-reservation-update">
+                            <i class="ik ik-save"></i> Update reservation
+                        </button>
+                    </div>
+                @endif
             </form>
         </div>
     </div>
@@ -797,7 +865,7 @@ window.initReservationPlaces = function () {
     var tokenEl = document.querySelector('meta[name="csrf-token"]');
     var token = tokenEl ? tokenEl.getAttribute('content') : '';
     var reservationStripeEnabled = @json(!empty($stripeEnabled));
-    var storeUrl = @json(route('reservation.store'));
+    var submitUrl = form.getAttribute('action') || @json(route('reservation.store'));
     var finalizeUrl = @json(route('reservation.finalize'));
 
     function serviceType() {
@@ -1114,13 +1182,14 @@ window.initReservationPlaces = function () {
             var btn = document.getElementById('btn-reservation-pay');
             var sp = document.getElementById('btn-reservation-spinner');
             var tx = document.getElementById('btn-reservation-text');
+            var defaultBtnHtml = btn ? (btn.getAttribute('data-default-html') || '') : '';
             if (btn) {
                 btn.disabled = !!on;
                 btn.setAttribute('aria-busy', on ? 'true' : 'false');
             }
             if (sp) sp.classList.toggle('d-none', !on);
             if (tx) {
-                tx.innerHTML = on ? 'Processing payment...' : '<i class="ik ik-check"></i> Pay &amp; create reservation';
+                tx.innerHTML = on ? 'Processing payment...' : defaultBtnHtml;
             }
         }
 
@@ -1148,6 +1217,10 @@ window.initReservationPlaces = function () {
 
         var payBtn = document.getElementById('btn-reservation-pay');
         if (payBtn) {
+            var payBtnText = document.getElementById('btn-reservation-text');
+            if (payBtnText) {
+                payBtn.setAttribute('data-default-html', payBtnText.innerHTML);
+            }
             payBtn.addEventListener('click', async function () {
                 var errEl = document.getElementById('reservation-card-errors');
                 if (errEl) errEl.textContent = '';
@@ -1181,7 +1254,7 @@ window.initReservationPlaces = function () {
                 formData.set('payment_method_id', paymentMethodResult.paymentMethod.id);
 
                 try {
-                    var response = await fetch(storeUrl, {
+                    var response = await fetch(submitUrl, {
                         method: 'POST',
                         body: formData,
                         headers: {
