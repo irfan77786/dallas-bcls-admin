@@ -101,6 +101,8 @@ Route::group(['middleware' => 'auth'], function () {
       
       
     Route::get('bookings', [BookingController::class, 'index'])->name('bookings.index');
+    Route::get('/bookings/{booking}/edit', [ReservationController::class, 'edit'])->name('bookings.edit');
+    Route::match(['put', 'patch'], '/bookings/{booking}', [ReservationController::class, 'update'])->name('bookings.update');
     Route::get('/bookings/{id}', [BookingController::class, 'show'])->name('bookings.show');
     Route::post('/bookings/{id}/send-composer-emails', [BookingController::class, 'sendComposerEmails'])->name('bookings.send-composer-emails');
 

@@ -16,6 +16,9 @@
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap">
             <h4 class="mb-0">Booking #{{ $booking->id }}</h4>
             <div class="d-flex flex-wrap align-items-center">
+                <a href="{{ route('bookings.edit', $booking->id) }}" class="btn btn-sm btn-light text-primary font-weight-bold mt-2 mt-md-0">
+                    <i class="ik ik-edit-2"></i> Edit reservation
+                </a>
                 @if($travelInfo)
                     <span class="mr-2 badge bg-{{ $travelInfo['type'] == 'hourly' ? 'warning' : 'info' }} text-dark">
                         {{ ucfirst(str_replace('_', ' ', $travelInfo['type'])) }} Booking
