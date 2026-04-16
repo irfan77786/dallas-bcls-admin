@@ -344,9 +344,6 @@
                     <a href="{{ route('reservation.create') }}" class="btn btn-primary">
                         <i class="bi bi-plus-circle"></i> New reservation
                     </a>
-                    <a href="{{ route('bookings.index') }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-counterclockwise"></i> Reset filters
-                    </a>
                 </div>
             </div>
 
