@@ -33,11 +33,11 @@
                     </a>
                 </div>
 
-                <!-- Manage Bookings -->
+                <!-- Reservations -->
                 <div class="nav-item {{ ($segment1 == 'manage-bookings') ? 'active' : '' }}">
                     <a href="/bookings">
                         <i class="ik ik-calendar"></i>
-                        <span>{{ __('Manage Bookings') }}</span>
+                        <span>{{ __('Reservations') }}</span>
                     </a>
                 </div>
 
@@ -45,7 +45,7 @@
                 <div class="nav-item {{ in_array($segment1, ['reservation', 'reservation-v2'], true) ? 'active' : '' }}">
                     <a href="{{ route('reservation.create') }}">
                         <i class="ik ik-plus-square"></i>
-                        <span>{{ __('Reservation') }}</span>
+                        <span>{{ __('Add Reservation') }}</span>
                     </a>
                 </div>
 
