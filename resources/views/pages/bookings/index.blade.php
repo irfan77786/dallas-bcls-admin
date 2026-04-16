@@ -306,7 +306,7 @@
 <div class="container-fluid bookings-shell">
     <div class="bookings-hero">
         <h2 class="bookings-title">Reservations</h2>
-        <p class="bookings-subtitle">A cleaner and faster way to review, search, and manage reservations.</p>
+        <!-- <p class="bookings-subtitle">A cleaner and faster way to review, search, and manage reservations.</p> -->
     </div>
 
     @if (session('success'))
