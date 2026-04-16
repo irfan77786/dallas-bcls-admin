@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\BookingReservationComposerMail;
 use App\Models\Booking;
+use App\Models\Vehicle;
 use App\Services\BookingEmailPayloadBuilder;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -14,13 +15,72 @@ use Illuminate\Support\Facades\Mail;
 
 class BookingController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $bookings = Booking::with(['vehicle', 'passengers']) // eager load relationships
-            ->latest()
-            ->paginate(10); // or use get() if pagination is not needed
- 
-        return view('pages.bookings.index', compact('bookings'));
+        $perPage = (int) $request->input('per_page', 10);
+        if (! in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 10;
+        }
+
+        $query = Booking::query()
+            ->with(['vehicle', 'passengers'])
+            ->latest('pickup_date')
+            ->latest('pickup_time')
+            ->latest('id');
+
+        if ($search = trim((string) $request->input('search'))) {
+            $query->where(function ($bookingQuery) use ($search) {
+                $bookingQuery
+                    ->where('booking_id', 'like', '%' . $search . '%')
+                    ->orWhere('pickup_location', 'like', '%' . $search . '%')
+                    ->orWhere('dropoff_location', 'like', '%' . $search . '%')
+                    ->orWhere('payment_status', 'like', '%' . $search . '%')
+                    ->orWhere('service_option', 'like', '%' . $search . '%')
+                    ->orWhere('id', 'like', '%' . $search . '%')
+                    ->orWhereHas('vehicle', function ($vehicleQuery) use ($search) {
+                        $vehicleQuery->where('vehicle_name', 'like', '%' . $search . '%');
+                    })
+                    ->orWhereHas('passengers', function ($passengerQuery) use ($search) {
+                        $passengerQuery
+                            ->where('first_name', 'like', '%' . $search . '%')
+                            ->orWhere('last_name', 'like', '%' . $search . '%')
+                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) like ?", ['%' . $search . '%']);
+                    });
+            });
+        }
+
+        if ($paymentStatus = $request->input('payment_status')) {
+            $query->where('payment_status', $paymentStatus);
+        }
+
+        if ($serviceOption = $request->input('service_option')) {
+            $query->where('service_option', $serviceOption);
+        }
+
+        if ($vehicleId = $request->input('vehicle_id')) {
+            $query->where('vehicle_id', $vehicleId);
+        }
+
+        if ($dateFrom = $request->input('date_from')) {
+            $query->whereDate('pickup_date', '>=', $dateFrom);
+        }
+
+        if ($dateTo = $request->input('date_to')) {
+            $query->whereDate('pickup_date', '<=', $dateTo);
+        }
+
+        $bookings = $query->paginate($perPage)->withQueryString();
+        $vehicles = Vehicle::query()
+            ->orderBy('vehicle_name')
+            ->get(['id', 'vehicle_name']);
+        $paymentStatuses = Booking::query()
+            ->select('payment_status')
+            ->whereNotNull('payment_status')
+            ->distinct()
+            ->orderBy('payment_status')
+            ->pluck('payment_status');
+
+        return view('pages.bookings.index', compact('bookings', 'vehicles', 'paymentStatuses'));
     }
 public function show($id)
 {
