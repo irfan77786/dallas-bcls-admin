@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 
 class BookingController extends Controller
 {
@@ -71,6 +72,7 @@ class BookingController extends Controller
 
         $bookings = $query->paginate($perPage)->withQueryString();
         $vehicles = Vehicle::query()
+            ->when(Schema::hasColumn('vehicles', 'sort_order'), fn ($q) => $q->orderBy('sort_order'))
             ->orderBy('vehicle_name')
             ->get(['id', 'vehicle_name']);
         $paymentStatuses = Booking::query()

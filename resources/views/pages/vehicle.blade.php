@@ -9,6 +9,49 @@
     <link rel="stylesheet" href="{{ asset('plugins/owl.carousel/dist/assets/owl.carousel.min.css') }}">
     <link rel="stylesheet" href="{{ asset('plugins/owl.carousel/dist/assets/owl.theme.default.min.css') }}">
     <link rel="stylesheet" href="{{ asset('plugins/chartist/dist/chartist.min.css') }}">
+    <style>
+        .vehicles-reorder-hint {
+            font-size: 0.875rem;
+            color: #5f7083;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .vehicles-reorder-hint i { color: #3d5a80; }
+        .vehicle-drag-cell { width: 3rem; text-align: center; vertical-align: middle !important; }
+        .vehicle-drag-handle {
+            cursor: grab;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.4rem 0.35rem;
+            border-radius: 8px;
+            color: #7a8a9a;
+            line-height: 0;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .vehicle-drag-handle:hover {
+            background: #eef2f7;
+            color: #2c4768;
+        }
+        .vehicle-drag-handle:active { cursor: grabbing; }
+        tr.vehicle-row-ghost {
+            opacity: 0.45;
+            background: #f0f4f9 !important;
+        }
+        tr.vehicle-row-chosen {
+            background: #e8f0fc !important;
+            box-shadow: inset 0 0 0 1px rgba(61, 90, 128, 0.2);
+        }
+        tr.vehicle-row-dragging {
+            opacity: 1;
+            background: #fff !important;
+            box-shadow: 0 8px 28px rgba(21, 40, 61, 0.12);
+        }
+        #vehicles-table tbody tr { transition: background 0.12s ease; }
+        .vehicle-row-index { font-weight: 600; color: #5f7083; font-variant-numeric: tabular-nums; }
+    </style>
 @endpush
 
 
@@ -31,9 +74,19 @@
                     
                     
                     <div class="card-body">
-                        <table id="data_table" class="table">
+                        @if(!empty($canReorderVehicles) && $vehicles->isNotEmpty())
+                            <p class="vehicles-reorder-hint mb-3">
+                                <i class="ik ik-move"></i>
+                                {{ __('Drag any row by the grip handle to change the display order. Your changes save automatically.') }}
+                            </p>
+                        @endif
+                        <table id="vehicles-table" class="table table-hover align-middle mb-0">
                             <thead>
                                 <tr>
+                                    <th class="nosort" style="width:3rem;">#</th>
+                                    @if(!empty($canReorderVehicles))
+                                        <th class="nosort text-center vehicle-drag-cell" title="{{ __('Reorder') }}"></th>
+                                    @endif
                                     <th>{{ __('Id')}}</th>
                                     <th class="nosort">Name</th>
                                         <th>{{ __('Image')}}</th>
@@ -45,9 +98,21 @@
                                 </tr>
                             </thead>
                             
-                            <tbody>
+                            <tbody @if(!empty($canReorderVehicles)) id="vehicles-sortable-body" @endif>
                                 @foreach($vehicles as $key => $value)
-                                <tr>
+                                <tr data-vehicle-id="{{ $value->id }}">
+                                    <td class="vehicle-row-index">{{ $loop->iteration }}</td>
+                                    @if(!empty($canReorderVehicles))
+                                        <td class="vehicle-drag-cell">
+                                            <span class="vehicle-drag-handle" title="{{ __('Drag to reorder') }}" role="button" tabindex="0">
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                                    <circle cx="9" cy="7" r="1.6"/><circle cx="15" cy="7" r="1.6"/>
+                                                    <circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/>
+                                                    <circle cx="9" cy="17" r="1.6"/><circle cx="15" cy="17" r="1.6"/>
+                                                </svg>
+                                            </span>
+                                        </td>
+                                    @endif
                                     <td>{{$value->id}}</td>
                                     <td>{{$value->vehicle_name}}</td>
                                     <td>
@@ -279,12 +344,82 @@
     <script src="{{ asset('js/widget-data.js') }}"></script>
     <script src="{{ asset('js/dashboard-charts.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <script>
     
   document.addEventListener('DOMContentLoaded', function () {
       
 
     $(document).ready(function () {
+        @if(!empty($canReorderVehicles))
+        (function initVehicleSortable() {
+            var tbody = document.getElementById('vehicles-sortable-body');
+            if (!tbody || typeof Sortable === 'undefined') {
+                return;
+            }
+            var token = $('meta[name="csrf-token"]').attr('content');
+            var saving = false;
+
+            function renumberRows() {
+                $(tbody).find('tr').each(function (idx) {
+                    $(this).find('td.vehicle-row-index').first().text(idx + 1);
+                });
+            }
+
+            Sortable.create(tbody, {
+                animation: 180,
+                handle: '.vehicle-drag-handle',
+                ghostClass: 'vehicle-row-ghost',
+                chosenClass: 'vehicle-row-chosen',
+                dragClass: 'vehicle-row-dragging',
+                forceFallback: false,
+                onEnd: function (evt) {
+                    if (evt.oldIndex === evt.newIndex || saving) {
+                        return;
+                    }
+                    var ids = Array.prototype.map.call(
+                        tbody.querySelectorAll('tr[data-vehicle-id]'),
+                        function (tr) {
+                            return parseInt(tr.getAttribute('data-vehicle-id'), 10);
+                        }
+                    );
+                    saving = true;
+                    $.ajax({
+                        url: '{{ url('/vehicle/reorder') }}',
+                        type: 'POST',
+                        data: {
+                            _token: token,
+                            vehicle_ids: ids
+                        },
+                        success: function () {
+                            renumberRows();
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: '{{ __('Order saved') }}',
+                                showConfirmButton: false,
+                                timer: 1800,
+                                timerProgressBar: true
+                            });
+                        },
+                        error: function (xhr) {
+                            var msg = (xhr.responseJSON && xhr.responseJSON.message)
+                                ? xhr.responseJSON.message
+                                : '{{ __('Could not save order.') }}';
+                            Swal.fire('{{ __('Error') }}', msg, 'error').then(function () {
+                                window.location.reload();
+                            });
+                        },
+                        complete: function () {
+                            saving = false;
+                        }
+                    });
+                }
+            });
+        })();
+        @endif
+
         $('.deleteVehicleBtn').click(function (e) {
             e.preventDefault();
             var vehicleId = $(this).data('id');

@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta http-equiv="x-ua-compatible" content="ie=edge">
-        <title>Login | Laravel Admin Starter Kit - Radmin</title>
+        <title>Login | Black Car Service Dallas</title>
         <meta name="description" content="">
         <meta name="keywords" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -33,7 +33,14 @@
                     <div class="col-xl-4 col-lg-4 col-md-4 m-auto">
                         <div class="authentication-form mx-auto">
                             <div class="logo-centered">
-                                <a href="/"><img height="40" src="https://i.ibb.co/4RXcLJkg/premiercls-logo.jpg" alt="RADMIN" ></a>
+                                <a href="/">
+                                    <img
+                                        src="https://dallasblackcarslimoservice.com/img/black-car-service-dallas-logo.webp"
+                                        alt="Dallas Black Cars Limo Service"
+                                        class="img-fluid"
+                                        style="max-height: 88px; width: auto; max-width: 100%;"
+                                    >
+                                </a>
                             </div>
                             <p>Welcome back! </p>
                             <form method="POST" action="{{ route('login') }}">
