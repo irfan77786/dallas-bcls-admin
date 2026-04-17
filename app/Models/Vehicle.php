@@ -9,6 +9,7 @@ class Vehicle extends Model
 {
     use HasFactory;
     protected $fillable = [
+        'sort_order',
         'vehicle_name',
         'vehicle_image',
         'vehicle_code',

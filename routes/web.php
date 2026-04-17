@@ -92,6 +92,7 @@ Route::group(['middleware' => 'auth'], function () {
     Route::post('/reservation', [ReservationController::class, 'store'])->name('reservation.store');
     Route::post('/reservation/finalize', [ReservationController::class, 'finalizeReservation'])->name('reservation.finalize');
       Route::get('/vehicle', [DashboardController::class, 'vehicle'])->name('vehicle');
+      Route::post('/vehicle/reorder', [DashboardController::class, 'reorderVehicles'])->name('vehicle.reorder');
       Route::get('/vehicle/{id}/edit', [DashboardController::class, 'getVehicleData'])->name('vehicle.edit.ajax');
      Route::post('/update-vehicle', [DashboardController::class, 'updateVehicle'])->name('update.vehicle');
        Route::get('/bookings', [DashboardController::class, 'booking'])->name('booking');

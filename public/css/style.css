@@ -758,3 +758,40 @@ label {
 .cursor-pointer{
   cursor: pointer;
 }
+
+/* Sidebar brand logo: theme.css sets .logo-img { width: 30px } which breaks wide banner logos */
+.wrapper .page-wrap .app-sidebar .sidebar-header .header-brand {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: calc(100% - 52px);
+  line-height: 0;
+}
+.wrapper .page-wrap .app-sidebar .sidebar-header .header-brand .logo-img {
+  width: auto !important;
+  max-width: 100%;
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start;
+}
+.wrapper .page-wrap .app-sidebar .sidebar-header .header-brand .header-brand-img {
+  height: auto !important;
+  max-height: 42px;
+  width: auto !important;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left center;
+  display: block;
+}
+
+/* Collapsed rail: clip to left mark; expand on sidebar hover */
+.wrapper.nav-collapsed .page-wrap .app-sidebar:not(:hover) .sidebar-header .header-brand .logo-img {
+  max-width: 40px !important;
+  overflow: hidden;
+}
+.wrapper.nav-collapsed .page-wrap .app-sidebar:not(:hover) .sidebar-header .header-brand .header-brand-img {
+  max-width: 200px;
+}
+.wrapper.nav-collapsed .page-wrap .app-sidebar:hover .sidebar-header .header-brand .logo-img {
+  max-width: 100% !important;
+  overflow: visible;
+}

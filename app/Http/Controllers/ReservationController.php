@@ -59,7 +59,10 @@ class ReservationController extends Controller
 
     private function reservationView(string $view, string $pageTitle = 'Reservation', array $extraData = [])
     {
-        $vehicles = Vehicle::with(['carSeat'])->orderBy('vehicle_name')->get();
+        $vehicles = Vehicle::with(['carSeat'])
+            ->when(Schema::hasColumn('vehicles', 'sort_order'), fn ($q) => $q->orderBy('sort_order'))
+            ->orderBy('vehicle_name')
+            ->get();
         $googleMapsApiKey = config('services.google_maps.api_key');
         $stripePublishableKey = config('services.stripe.key');
         $stripeEnabled = (bool) (config('services.stripe.secret') && $stripePublishableKey);
@@ -79,7 +82,10 @@ class ReservationController extends Controller
         $data = $this->validateTrip($request);
 
         // Outbound only (matches public site: return is priced after vehicle choice, e.g. /calculate-return-trip).
-        $vehicles = Vehicle::with(['carSeat'])->get();
+        $vehicles = Vehicle::with(['carSeat'])
+            ->when(Schema::hasColumn('vehicles', 'sort_order'), fn ($q) => $q->orderBy('sort_order'))
+            ->orderBy('id')
+            ->get();
         $distanceData = [];
 
         foreach ($vehicles as $vehicle) {

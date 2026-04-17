@@ -8,8 +8,8 @@ class Feedback extends Model
 {
     use HasFactory;
 
-    // Explicitly set the table name
-    protected $table = 'feedbacks';
+    // Project DB uses singular table name.
+    protected $table = 'feedback';
 
     // Define the fields that are mass-assignable
     protected $fillable = ['employee_id', 'type', 'description'];

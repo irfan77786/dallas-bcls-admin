@@ -9,6 +9,9 @@ use App\Models\Vehicle;
 use App\Models\CarSeat;
 use App\Models\Booking;
 use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 
 class DashboardController extends Controller
@@ -18,15 +21,124 @@ class DashboardController extends Controller
      */
     public function index()
     {
-        // $totalReviews = Review::count();
-        // $reviews = Review::with('employee')->latest()->paginate(10); // Paginated for better performance
+        $totalBookings = Booking::count();
+        $totalRevenue = (float) Booking::sum('total_price');
+        $activeVehicles = Vehicle::where('active', true)->count();
+        $totalVehicles = Vehicle::count();
+        $totalReviews = Schema::hasTable('reviews') ? Review::count() : 0;
+        $totalFeedback = 0;
+        if (Schema::hasTable('feedback')) {
+            $totalFeedback = \App\Models\Feedback::count();
+        } elseif (Schema::hasTable('feedbacks')) {
+            $totalFeedback = \DB::table('feedbacks')->count();
+        }
 
-        return view('pages.dashboard');
+        $paidBookings = Booking::whereRaw('LOWER(payment_status) = ?', ['paid'])->count();
+        $pendingBookings = Booking::whereRaw('LOWER(payment_status) in (?, ?)', ['pending', 'unpaid'])->count();
+
+        $startOfCurrentMonth = Carbon::now()->startOfMonth();
+        $startOfLastMonth = Carbon::now()->subMonthNoOverflow()->startOfMonth();
+        $endOfLastMonth = Carbon::now()->subMonthNoOverflow()->endOfMonth();
+
+        $bookingsCurrentMonth = Booking::whereBetween('created_at', [$startOfCurrentMonth, Carbon::now()])->count();
+        $bookingsLastMonth = Booking::whereBetween('created_at', [$startOfLastMonth, $endOfLastMonth])->count();
+        $bookingGrowthPercent = $bookingsLastMonth > 0
+            ? (($bookingsCurrentMonth - $bookingsLastMonth) / $bookingsLastMonth) * 100
+            : ($bookingsCurrentMonth > 0 ? 100 : 0);
+
+        $monthlyBookingsData = collect(range(5, 0))
+            ->map(function ($monthsAgo) {
+                $date = Carbon::now()->subMonths($monthsAgo);
+                return [
+                    'label' => $date->format('M'),
+                    'count' => Booking::whereYear('created_at', $date->year)
+                        ->whereMonth('created_at', $date->month)
+                        ->count(),
+                ];
+            })
+            ->push([
+                'label' => Carbon::now()->format('M'),
+                'count' => Booking::whereYear('created_at', Carbon::now()->year)
+                    ->whereMonth('created_at', Carbon::now()->month)
+                    ->count(),
+            ]);
+
+        $recentBookings = Booking::with(['vehicle', 'booker', 'passengers'])
+            ->latest()
+            ->take(10)
+            ->get();
+
+        return view('pages.dashboard', [
+            'stats' => [
+                'totalBookings' => $totalBookings,
+                'totalRevenue' => $totalRevenue,
+                'activeVehicles' => $activeVehicles,
+                'totalVehicles' => $totalVehicles,
+                'totalReviews' => $totalReviews,
+                'totalFeedback' => $totalFeedback,
+                'paidBookings' => $paidBookings,
+                'pendingBookings' => $pendingBookings,
+                'bookingsCurrentMonth' => $bookingsCurrentMonth,
+                'bookingsLastMonth' => $bookingsLastMonth,
+                'bookingGrowthPercent' => round($bookingGrowthPercent, 1),
+            ],
+            'recentBookings' => $recentBookings,
+            'monthlyBookingLabels' => $monthlyBookingsData->pluck('label')->values(),
+            'monthlyBookingCounts' => $monthlyBookingsData->pluck('count')->values(),
+        ]);
     }
     
-    public function vehicle(){
-        $vehicles = Vehicle::with(['carSeat'])->get();
-         return view('pages.vehicle',compact('vehicles'));
+    public function vehicle()
+    {
+        $query = Vehicle::with(['carSeat']);
+        if (Schema::hasColumn('vehicles', 'sort_order')) {
+            $query->orderBy('sort_order');
+        }
+        $vehicles = $query->orderBy('id')->get();
+
+        return view('pages.vehicle', [
+            'vehicles' => $vehicles,
+            'canReorderVehicles' => Schema::hasColumn('vehicles', 'sort_order'),
+        ]);
+    }
+
+    /**
+     * Persist vehicle row order after drag-and-drop (sort_order 1..n).
+     */
+    public function reorderVehicles(Request $request)
+    {
+        if (! Schema::hasColumn('vehicles', 'sort_order')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Run migrations to enable vehicle ordering.',
+            ], 422);
+        }
+
+        $request->validate([
+            'vehicle_ids' => 'required|array|min:1',
+            'vehicle_ids.*' => 'integer|exists:vehicles,id',
+        ]);
+
+        $submitted = array_values(array_map('intval', $request->input('vehicle_ids')));
+        if (count($submitted) !== count(array_unique($submitted))) {
+            return response()->json(['success' => false, 'message' => 'Duplicate vehicle ids.'], 422);
+        }
+
+        $expected = Vehicle::query()->orderBy('sort_order')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $sortedSubmit = $submitted;
+        sort($sortedSubmit);
+
+        if ($expected !== $sortedSubmit) {
+            return response()->json(['success' => false, 'message' => 'Invalid vehicle list for reorder.'], 422);
+        }
+
+        DB::transaction(function () use ($submitted) {
+            foreach ($submitted as $index => $id) {
+                Vehicle::whereKey($id)->update(['sort_order' => $index + 1]);
+            }
+        });
+
+        return response()->json(['success' => true, 'message' => 'Order saved.']);
     }
     
     
@@ -75,7 +187,7 @@ if ($request->hasFile('vehicle_image')) {
 }
 
 
-        $vehicle = Vehicle::create([
+        $createPayload = [
             'vehicle_name' => $validated['vehicle_name'],
             'vehicle_code' => $validated['vehicle_code'],
             'number_of_passengers' => $validated['number_of_passengers'],
@@ -87,8 +199,14 @@ if ($request->hasFile('vehicle_image')) {
             'vehicle_image' => $imagePath,
             'base_fare' => $validated['base_fare'],
             'base_hourly_fare' => $validated['base_hourly_fare'],
-            'per_km_rate' => $validated['per_km_rate']
-            ]);
+            'per_km_rate' => $validated['per_km_rate'],
+        ];
+
+        if (Schema::hasColumn('vehicles', 'sort_order')) {
+            $createPayload['sort_order'] = (int) (Vehicle::max('sort_order') ?? 0) + 1;
+        }
+
+        $vehicle = Vehicle::create($createPayload);
 
         // ✅ 3. Optionally save car seats if provided
         if (!empty($validated['car_seats'])) {

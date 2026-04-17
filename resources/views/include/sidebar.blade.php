@@ -1,8 +1,15 @@
 <div class="app-sidebar colored">
     <div class="sidebar-header">
-        <a class="header-brand" href="#">
+        <a class="header-brand" href="{{ url('/dashboard') }}" title="Dallas Black Cars Limo Service">
             <div class="logo-img">
-                <img height="30" src="https://i.ibb.co/4RXcLJkg/premiercls-logo.jpg" class="header-brand-img" title="RADMIN">
+                <img
+                    src="https://dallasblackcarslimoservice.com/img/black-car-service-dallas-logo.webp"
+                    alt="Dallas Black Cars Limo Service"
+                    class="header-brand-img"
+                    width="200"
+                    height="48"
+                    decoding="async"
+                >
             </div>
         </a>
         <div class="sidebar-action"><i class="ik ik-arrow-left-circle"></i></div>
@@ -22,14 +29,6 @@
                     <a href="/dashboard">
                         <i class="ik ik-bar-chart-2"></i>
                         <span>{{ __('Dashboard') }}</span>
-                    </a>
-                </div>
-
-                <!-- Manage Cars -->
-                <div class="nav-item {{ ($segment1 == 'manage-cars') ? 'active' : '' }}">
-                    <a href="/vehicle">
-                        <i class="ik ik-bar-chart-2"></i>
-                        <span>{{ __('Manage Vehicle') }}</span>
                     </a>
                 </div>
 
@@ -58,6 +57,14 @@
                 <!--</div>-->
 
                 <!-- Complaints & Suggestions -->
+
+                <!-- Manage Vehicles (last) -->
+                <div class="nav-item {{ ($segment1 == 'vehicle' || $segment1 == 'manage-cars') ? 'active' : '' }}">
+                    <a href="/vehicle">
+                        <i class="ik ik-truck"></i>
+                        <span>{{ __('Manage Vehicles') }}</span>
+                    </a>
+                </div>
 
             </nav>
         </div>
