@@ -227,7 +227,6 @@ if ($request->hasFile('vehicle_image')) {
         return back()->with('success', 'Vehicle created successfully.');
 
     } catch (\Exception $e) {
-         dd($e->getMessage());
         // ✅ 5. In case of error, return to the form with the error message
         return back()->withErrors(['error' => $e->getMessage()])->withInput();
     }
