@@ -204,11 +204,9 @@
                 <a href="{{ route('bookings.edit', $booking->id) }}" class="btn btn-primary mr-2 mb-2 mb-md-0">
                     <i class="ik ik-edit-2 mr-1"></i> Edit reservation
                 </a>
-                @if ($booking->from_admin_reservation)
-                    <button type="button" class="btn btn-outline-primary" data-toggle="modal" data-target="#modalBookingEmailComposer">
-                        <i class="ik ik-mail mr-1"></i> Send booking emails
-                    </button>
-                @endif
+                <button type="button" class="btn btn-outline-primary" data-toggle="modal" data-target="#modalBookingEmailComposer">
+                    <i class="ik ik-mail mr-1"></i> Send booking emails
+                </button>
             </div>
         </div>
 
@@ -554,7 +552,5 @@
     </div>
 </div>
 
-@if ($booking->from_admin_reservation)
-    @include('pages.bookings.partials.email-composer-modal')
-@endif
+@include('pages.bookings.partials.email-composer-modal')
 @endsection

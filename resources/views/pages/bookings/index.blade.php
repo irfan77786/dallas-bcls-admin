@@ -180,17 +180,19 @@
     .booking-action-btn {
         display: inline-flex;
         align-items: center;
-        gap: 0.32rem;
+        justify-content: center;
+        gap: 0;
         border-radius: 10px;
-        padding: 0.32rem 0.5rem;
+        padding: 0;
         font-weight: 600;
         font-size: 0.76rem;
         line-height: 1;
-        justify-content: center;
+        width: 42px;
+        height: 36px;
         white-space: nowrap;
     }
     .booking-action-label {
-        display: inline;
+        display: none;
         line-height: 1;
     }
     .booking-action-btn i {
@@ -487,12 +489,17 @@
                                     <div class="booking-actions justify-content-end">
                                         <a href="{{ route('bookings.show', $booking->id) }}" class="btn btn-outline-primary booking-action-btn" title="View reservation">
                                             <i class="bi bi-eye"></i>
-                                            <span class="booking-action-label">View</span>
                                         </a>
                                         <a href="{{ route('bookings.edit', $booking->id) }}" class="btn btn-primary booking-action-btn" title="Edit reservation">
                                             <i class="bi bi-pencil-square"></i>
-                                            <span class="booking-action-label">Edit</span>
                                         </a>
+                                        <form method="POST" action="{{ route('bookings.destroy', $booking->id) }}" onsubmit="return confirm('Delete this reservation permanently?');" class="m-0">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-outline-danger booking-action-btn" title="Delete reservation">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -565,11 +572,18 @@
                         </div>
                         <div class="booking-actions">
                             <a href="{{ route('bookings.show', $booking->id) }}" class="btn btn-outline-primary booking-action-btn flex-fill">
-                                <i class="bi bi-eye"></i> View
+                                <i class="bi bi-eye"></i>
                             </a>
                             <a href="{{ route('bookings.edit', $booking->id) }}" class="btn btn-primary booking-action-btn flex-fill">
-                                <i class="bi bi-pencil-square"></i> Edit
+                                <i class="bi bi-pencil-square"></i>
                             </a>
+                            <form method="POST" action="{{ route('bookings.destroy', $booking->id) }}" onsubmit="return confirm('Delete this reservation permanently?');" class="m-0 flex-fill">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-outline-danger booking-action-btn w-100">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
                         </div>
                     </div>
                 @empty
