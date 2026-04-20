@@ -9,6 +9,7 @@ use App\Models\Vehicle;
 use App\Services\BookingEmailPayloadBuilder;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -128,6 +129,41 @@ public function show($id)
     return view('pages.bookings.show', compact('booking', 'travelInfo'));
     }
 
+    public function destroy($id)
+    {
+        $booking = Booking::with(['passengers.flightDetail', 'booker', 'returnService', 'breakdown', 'payments'])->findOrFail($id);
+
+        DB::transaction(function () use ($booking) {
+            foreach ($booking->passengers as $passenger) {
+                if ($passenger->flightDetail) {
+                    $passenger->flightDetail()->delete();
+                }
+            }
+
+            $booking->payments()->delete();
+            if ($booking->breakdown) {
+                $booking->breakdown()->delete();
+            }
+            $booking->passengers()->delete();
+
+            $returnServiceId = $booking->return_service_id;
+            $bookerId = $booking->booker_id;
+
+            $booking->delete();
+
+            if ($returnServiceId) {
+                \App\Models\ReturnService::where('id', $returnServiceId)->delete();
+            }
+            if ($bookerId) {
+                \App\Models\Booker::where('id', $bookerId)->delete();
+            }
+        });
+
+        return redirect()
+            ->route('bookings.index')
+            ->with('success', 'Reservation deleted successfully.');
+    }
+
     /**
      * Send customer-style and admin-style booking emails with PDF (after “save without pay”).
      */
@@ -140,16 +176,6 @@ public function show($id)
             'returnService',
             'breakdown',
         ])->findOrFail($id);
-
-        if (! $booking->from_admin_reservation) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Email composer is only available for bookings created from the admin reservation form.',
-                ], 403);
-            }
-            abort(403, 'Email composer is only available for bookings created from the admin reservation form.');
-        }
 
         $request->validate([
             'personal_message' => ['nullable', 'string', 'max:500'],
