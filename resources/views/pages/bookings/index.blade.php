@@ -75,23 +75,30 @@
         font-size: 0.9rem;
     }
     .bookings-table th:nth-child(1),
-    .bookings-table td:nth-child(1) { width: 11%; }
+    .bookings-table td:nth-child(1) { width: 10%; }
     .bookings-table th:nth-child(2),
-    .bookings-table td:nth-child(2) { width: 11%; }
+    .bookings-table td:nth-child(2) { width: 9%; }
     .bookings-table th:nth-child(3),
-    .bookings-table td:nth-child(3) { width: 12%; }
+    .bookings-table td:nth-child(3) { width: 10%; }
     .bookings-table th:nth-child(4),
-    .bookings-table td:nth-child(4) { width: 12%; }
+    .bookings-table td:nth-child(4) { width: 10%; }
     .bookings-table th:nth-child(5),
-    .bookings-table td:nth-child(5) { width: 12%; }
+    .bookings-table td:nth-child(5) { width: 10%; }
     .bookings-table th:nth-child(6),
-    .bookings-table td:nth-child(6) { width: 11%; }
+    .bookings-table td:nth-child(6) { width: 9%; }
     .bookings-table th:nth-child(7),
-    .bookings-table td:nth-child(7) { width: 8%; }
+    .bookings-table td:nth-child(7) { width: 11%; }
     .bookings-table th:nth-child(8),
-    .bookings-table td:nth-child(8) { width: 9%; }
+    .bookings-table td:nth-child(8) { width: 7%; }
     .bookings-table th:nth-child(9),
-    .bookings-table td:nth-child(9) { width: 14%; }
+    .bookings-table td:nth-child(9) { width: 8%; }
+    .bookings-table th:nth-child(10),
+    .bookings-table td:nth-child(10) { width: 16%; }
+    .bookings-table thead th.col-form-submitted {
+        white-space: normal;
+        line-height: 1.25;
+        max-width: 6.5rem;
+    }
     .bookings-table tbody tr:hover {
         background: #fbfdff;
     }
@@ -434,6 +441,7 @@
                             <th>Pickup</th>
                             <th>Drop-off</th>
                             <th>Date &amp; Time</th>
+                            <th class="col-form-submitted">Form submitted date and time</th>
                             <th>Total</th>
                             <th>Payment</th>
                             <th class="text-right">Actions</th>
@@ -477,6 +485,14 @@
                                     <div class="booking-secondary">{{ substr((string) $booking->pickup_time, 0, 5) }}</div>
                                 </td>
                                 <td>
+                                    @if($booking->created_at)
+                                        <div class="booking-primary">{{ $booking->created_at->format('M d, Y') }}</div>
+                                        <div class="booking-secondary">{{ $booking->created_at->format('g:i A') }}</div>
+                                    @else
+                                        <span class="booking-secondary">—</span>
+                                    @endif
+                                </td>
+                                <td>
                                     <div class="booking-primary">${{ number_format((float) $booking->total_price, 2) }}</div>
                                 </td>
                                 <td>
@@ -505,7 +521,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9">
+                                <td colspan="10">
                                     <div class="bookings-empty">
                                         <div class="font-weight-bold mb-1">No reservations found</div>
                                         <div>Try changing your search or clearing one or more filters.</div>
@@ -546,6 +562,10 @@
                         <div class="booking-mobile-row">
                             <span class="booking-mobile-label">Date</span>
                             <span class="booking-mobile-value">{{ \Carbon\Carbon::parse($booking->pickup_date)->format('M d, Y') }} {{ substr((string) $booking->pickup_time, 0, 5) }}</span>
+                        </div>
+                        <div class="booking-mobile-row">
+                            <span class="booking-mobile-label">Form submitted time and date</span>
+                            <span class="booking-mobile-value">{{ $booking->created_at ? $booking->created_at->format('M d, Y g:i A') : '—' }}</span>
                         </div>
                         <div class="booking-mobile-row">
                             <span class="booking-mobile-label">Service</span>

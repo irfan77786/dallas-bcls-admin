@@ -26,9 +26,7 @@ class BookingController extends Controller
 
         $query = Booking::query()
             ->with(['vehicle', 'passengers'])
-            ->latest('pickup_date')
-            ->latest('pickup_time')
-            ->latest('id');
+            ->latest();
 
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($bookingQuery) use ($search) {
