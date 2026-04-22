@@ -17,6 +17,9 @@
         </div>
 
         <div class="content" style="padding: 10px 4px 20px;">
+            @if(!$isAdmin)
+                @include('emails.partials.fifa-world-cup-2026-notice')
+            @endif
             {{-- Greeting / Intro --}}
             @if($isAdmin)
             <p style="font-size: 12px; margin: 0 0 10px;"><b>Dear Admin,</b></p>

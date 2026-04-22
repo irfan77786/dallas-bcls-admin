@@ -17,6 +17,7 @@
         </div>
 
         <div class="content" style="padding: 10px 4px 20px;">
+            @include('emails.partials.fifa-world-cup-2026-notice')
             @if(!empty($bookingData['personal_message']))
             <div style="padding: 14px 16px; margin: 0 0 18px; background: linear-gradient(135deg, #faf8f3 0%, #f5f2ea 100%); border: 1px solid #e8e0d0; border-radius: 8px; font-size: 13px; color: #333;">
                 <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #9e7c1e; margin-bottom: 8px;">Personal message</div>
