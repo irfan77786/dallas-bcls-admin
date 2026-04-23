@@ -101,12 +101,28 @@
             white-space: nowrap;
             padding: 0.8rem 0.55rem;
         }
+        .bookings-table thead th.col-form-submitted {
+            white-space: normal;
+            line-height: 1.25;
+            max-width: 6.5rem;
+        }
         .bookings-table tbody td {
             vertical-align: middle;
             padding: 0.8rem 0.55rem;
             border-color: #edf1f6;
             font-size: 0.9rem;
         }
+        /* 10 columns: avoid overlap; Form submitted + Payment + Actions need room */
+        .bookings-table th:nth-child(1), .bookings-table td:nth-child(1) { width: 9%; }
+        .bookings-table th:nth-child(2), .bookings-table td:nth-child(2) { width: 8%; }
+        .bookings-table th:nth-child(3), .bookings-table td:nth-child(3) { width: 9%; }
+        .bookings-table th:nth-child(4), .bookings-table td:nth-child(4) { width: 8%; }
+        .bookings-table th:nth-child(5), .bookings-table td:nth-child(5) { width: 8%; }
+        .bookings-table th:nth-child(6), .bookings-table td:nth-child(6) { width: 8%; }
+        .bookings-table th:nth-child(7), .bookings-table td:nth-child(7) { width: 11%; min-width: 6.5rem; }
+        .bookings-table th:nth-child(8), .bookings-table td:nth-child(8) { width: 6%; }
+        .bookings-table th:nth-child(9), .bookings-table td:nth-child(9) { width: 10%; min-width: 6.5rem; }
+        .bookings-table th:nth-child(10), .bookings-table td:nth-child(10) { width: 15%; min-width: 10rem; }
         .bookings-table tbody tr:hover { background: #fbfdff; }
         .booking-id { font-weight: 700; color: #16324b; font-size: 0.92rem; line-height: 1.25; }
         .booking-id-sub { color: #7c8b9a; font-size: 0.78rem; }
@@ -152,7 +168,8 @@
         .booking-status-pending { background: rgba(255, 193, 7, 0.18); color: #8f6500; }
         .booking-status-authorized { background: rgba(13, 110, 253, 0.12); color: #0a58ca; }
         .booking-status-default { background: rgba(108, 117, 125, 0.12); color: #495057; }
-        .booking-actions { display: flex; flex-wrap: nowrap; gap: 0.5rem; align-items: center; }
+        .booking-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
+        .bookings-table td.text-right .booking-actions { max-width: 100%; }
         .booking-action-btn {
             display: inline-flex;
             align-items: center;
@@ -201,6 +218,7 @@
                                     <th>Pickup</th>
                                     <th>Drop-off</th>
                                     <th>Date &amp; Time</th>
+                                    <th class="col-form-submitted">Form submitted date and time</th>
                                     <th>Total</th>
                                     <th>Payment</th>
                                     <th class="text-right">Actions</th>
@@ -237,6 +255,17 @@
                                             <div class="booking-primary">{{ $booking->pickup_date ? \Carbon\Carbon::parse($booking->pickup_date)->format('M d, Y') : 'N/A' }}</div>
                                             <div class="booking-secondary">{{ $booking->pickup_time ? substr((string) $booking->pickup_time, 0, 5) : '--:--' }}</div>
                                         </td>
+                                        <td>
+                                            @if($booking->created_at)
+                                                <div
+                                                    class="js-form-submitted-local"
+                                                    data-utc="{{ $booking->created_at->toIso8601String() }}"
+                                                    data-layout="split"
+                                                ></div>
+                                            @else
+                                                <span class="booking-secondary">—</span>
+                                            @endif
+                                        </td>
                                         <td><div class="booking-primary">${{ number_format((float) $booking->total_price, 2) }}</div></td>
                                         <td>
                                             <span class="booking-status-badge {{ $paymentBadgeClass($booking->payment_status) }}">
@@ -257,7 +286,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="9">
+                                        <td colspan="10">
                                             <div class="bookings-empty">
                                                 <div class="font-weight-bold mb-1">No reservations found</div>
                                                 <div>Recent reservations will appear here automatically.</div>
@@ -412,6 +441,38 @@
                 });
             });
         })();
+    </script>
+    <script>
+    (function () {
+        function formatFormSubmittedLocal(el) {
+            var iso = el.getAttribute('data-utc');
+            if (!iso) return;
+            var d = new Date(iso);
+            if (isNaN(d.getTime())) return;
+
+            var dateStr = d.toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+            });
+            var timeStr = d.toLocaleTimeString(undefined, {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+            });
+            var layout = el.getAttribute('data-layout') || 'inline';
+
+            if (layout === 'split') {
+                el.innerHTML =
+                    '<div class="booking-primary">' + dateStr + '</div>' +
+                    '<div class="booking-secondary">' + timeStr + '</div>';
+            } else {
+                el.textContent = dateStr + ' ' + timeStr;
+            }
+        }
+
+        document.querySelectorAll('.js-form-submitted-local').forEach(formatFormSubmittedLocal);
+    })();
     </script>
 @endpush
 
