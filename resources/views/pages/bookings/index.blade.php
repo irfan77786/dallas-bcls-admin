@@ -486,8 +486,11 @@
                                 </td>
                                 <td>
                                     @if($booking->created_at)
-                                        <div class="booking-primary">{{ $booking->created_at->format('M d, Y') }}</div>
-                                        <div class="booking-secondary">{{ $booking->created_at->format('g:i A') }}</div>
+                                        <div
+                                            class="js-form-submitted-local"
+                                            data-utc="{{ $booking->created_at->toIso8601String() }}"
+                                            data-layout="split"
+                                        ></div>
                                     @else
                                         <span class="booking-secondary">—</span>
                                     @endif
@@ -565,7 +568,17 @@
                         </div>
                         <div class="booking-mobile-row">
                             <span class="booking-mobile-label">Form submitted time and date</span>
-                            <span class="booking-mobile-value">{{ $booking->created_at ? $booking->created_at->format('M d, Y g:i A') : '—' }}</span>
+                            <span class="booking-mobile-value">
+                                @if($booking->created_at)
+                                    <span
+                                        class="js-form-submitted-local"
+                                        data-utc="{{ $booking->created_at->toIso8601String() }}"
+                                        data-layout="inline"
+                                    ></span>
+                                @else
+                                    —
+                                @endif
+                            </span>
                         </div>
                         <div class="booking-mobile-row">
                             <span class="booking-mobile-label">Service</span>
@@ -636,6 +649,37 @@
             form.submit();
         });
     });
+})();
+
+(function () {
+    function formatFormSubmittedLocal(el) {
+        var iso = el.getAttribute('data-utc');
+        if (!iso) return;
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return;
+
+        var dateStr = d.toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        });
+        var timeStr = d.toLocaleTimeString(undefined, {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+        });
+        var layout = el.getAttribute('data-layout') || 'inline';
+
+        if (layout === 'split') {
+            el.innerHTML =
+                '<div class="booking-primary">' + dateStr + '</div>' +
+                '<div class="booking-secondary">' + timeStr + '</div>';
+        } else {
+            el.textContent = dateStr + ' ' + timeStr;
+        }
+    }
+
+    document.querySelectorAll('.js-form-submitted-local').forEach(formatFormSubmittedLocal);
 })();
 </script>
 @endpush
