@@ -1,5 +1,6 @@
 {{-- Original long-form cancellation, deposit, and service policy (unchanged) --}}
-  <div class="sections" style="page-break-before: always;">
+  {{-- No page-break-before: avoids a large empty gap after Charges & Total Due on the first page (DomPDF). --}}
+  <div class="sections" style="margin-top: 10px;">
       <h2 class="custom-large-heading">Cancellation Policy: Cancellation, Deposit &amp; Service Policy</h2>
       <div class="section-content">
         <p>

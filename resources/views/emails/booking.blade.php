@@ -150,8 +150,8 @@
                     </tr>
 
                     <tr class="detail-row">
-                        <td class="detail-label" style="font-weight: bold; color: red; width: 40%; min-width: 140px; padding: 3px 5px 3px 0; box-sizing: border-box; vertical-align: top; padding-bottom: 12px;">Total Due:</td>
-                        <td class="detail-value" style="width: 60%; color: #333; padding: 3px 0; box-sizing: border-box; word-wrap: break-word; vertical-align: top; padding-bottom: 12px;"><b>${{ number_format($bookingData['total_amount'] ?? 0, 2) }}</b></td>
+                        <td class="detail-label" style="font-weight: bold; color: red; width: 40%; min-width: 140px; padding: 3px 5px 3px 0; box-sizing: border-box; vertical-align: top;">Total Due:</td>
+                        <td class="detail-value" style="width: 60%; color: #333; padding: 3px 0; box-sizing: border-box; word-wrap: break-word; vertical-align: top;"><b>${{ number_format($bookingData['total_amount'] ?? 0, 2) }}</b></td>
                     </tr>
 
                     <tr class="detail-row">
