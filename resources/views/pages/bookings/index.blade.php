@@ -135,6 +135,12 @@
         display: flex;
         flex-wrap: wrap;
         gap: 0.35rem;
+        min-width: 0;
+        max-width: 100%;
+    }
+    .bookings-table tbody td:nth-child(3) {
+        overflow: hidden;
+        max-width: 0;
     }
     .booking-passenger-chip {
         display: inline-flex;
@@ -146,8 +152,22 @@
         color: #24476b;
         font-size: 0.74rem;
         font-weight: 600;
+        min-width: 0;
         max-width: 100%;
+    }
+    .booking-passenger-chip > i,
+    .booking-passenger-chip .bi {
+        flex-shrink: 0;
+    }
+    .booking-passenger-chip__name {
+        flex: 1 1 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
         white-space: nowrap;
+    }
+    .booking-passenger-chip--count {
+        flex-shrink: 0;
     }
     .booking-status-badge {
         display: inline-flex;
@@ -461,11 +481,11 @@
                                     @if($booking->passengers->isNotEmpty())
                                         <div class="booking-passengers">
                                             <span class="booking-passenger-chip" title="{{ $booking->passengers->map(fn ($passenger) => trim($passenger->first_name . ' ' . $passenger->last_name))->implode(', ') }}">
-                                                <i class="bi bi-person"></i>
-                                                {{ trim($booking->passengers->first()->first_name . ' ' . $booking->passengers->first()->last_name) }}
+                                                <i class="bi bi-person" aria-hidden="true"></i>
+                                                <span class="booking-passenger-chip__name">{{ $booking->passengers->first()->first_name }}</span>
                                             </span>
                                             @if($booking->passengers->count() > 1)
-                                                <span class="booking-passenger-chip">
+                                                <span class="booking-passenger-chip booking-passenger-chip--count">
                                                     +{{ $booking->passengers->count() - 1 }}
                                                 </span>
                                             @endif
@@ -593,9 +613,9 @@
                             @if($booking->passengers->isNotEmpty())
                                 <div class="booking-passengers">
                                     @foreach($booking->passengers as $passenger)
-                                        <span class="booking-passenger-chip">
-                                            <i class="bi bi-person"></i>
-                                            {{ trim($passenger->first_name . ' ' . $passenger->last_name) }}
+                                        <span class="booking-passenger-chip" title="{{ trim($passenger->first_name . ' ' . $passenger->last_name) }}">
+                                            <i class="bi bi-person" aria-hidden="true"></i>
+                                            <span class="booking-passenger-chip__name">{{ $passenger->first_name }}</span>
                                         </span>
                                     @endforeach
                                 </div>
