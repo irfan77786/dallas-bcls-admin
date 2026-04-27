@@ -137,7 +137,8 @@
             display: inline-block;
             max-width: 100%;
         }
-        .booking-passengers { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .booking-passengers { display: flex; flex-wrap: wrap; gap: 0.35rem; min-width: 0; max-width: 100%; }
+        .bookings-table tbody td:nth-child(3) { overflow: hidden; max-width: 0; }
         .booking-passenger-chip {
             display: inline-flex;
             align-items: center;
@@ -148,9 +149,14 @@
             color: #24476b;
             font-size: 0.74rem;
             font-weight: 600;
+            min-width: 0;
             max-width: 100%;
-            white-space: nowrap;
         }
+        .booking-passenger-chip > i, .booking-passenger-chip .bi { flex-shrink: 0; }
+        .booking-passenger-chip__name {
+            flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .booking-passenger-chip--count { flex-shrink: 0; }
         .booking-status-badge {
             display: inline-flex;
             align-items: center;
@@ -238,11 +244,11 @@
                                             @if($booking->passengers->isNotEmpty())
                                                 <div class="booking-passengers">
                                                     <span class="booking-passenger-chip" title="{{ $booking->passengers->map(fn ($passenger) => trim($passenger->first_name . ' ' . $passenger->last_name))->implode(', ') }}">
-                                                        <i class="bi bi-person"></i>
-                                                        {{ trim($booking->passengers->first()->first_name . ' ' . $booking->passengers->first()->last_name) }}
+                                                        <i class="bi bi-person" aria-hidden="true"></i>
+                                                        <span class="booking-passenger-chip__name">{{ $booking->passengers->first()->first_name }}</span>
                                                     </span>
                                                     @if($booking->passengers->count() > 1)
-                                                        <span class="booking-passenger-chip">+{{ $booking->passengers->count() - 1 }}</span>
+                                                        <span class="booking-passenger-chip booking-passenger-chip--count">+{{ $booking->passengers->count() - 1 }}</span>
                                                     @endif
                                                 </div>
                                             @else
