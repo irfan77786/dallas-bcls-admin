@@ -198,33 +198,21 @@
         background: rgba(108, 117, 125, 0.12);
         color: #495057;
     }
-    .booking-actions {
-        display: flex;
-        flex-wrap: nowrap;
-        gap: 0.5rem;
-        align-items: center;
+    /* Icon links aligned with theme .table-actions (same as Accounts) */
+    .bookings-table .table-actions,
+    .booking-mobile-card .table-actions { text-align: right; }
+    .bookings-table .table-actions a,
+    .booking-mobile-card .table-actions a { color: #bcc1c6; display: inline-block; margin-left: 8px; font-size: 16px; line-height: 1; }
+    .bookings-table .table-actions a:first-child,
+    .booking-mobile-card .table-actions a:first-child { margin-left: 0; }
+    .bookings-table .table-actions .booking-delete-form,
+    .booking-mobile-card .table-actions .booking-delete-form { display: inline; margin: 0 0 0 8px; padding: 0; vertical-align: middle; }
+    .bookings-table .table-actions .booking-delete-btn,
+    .booking-mobile-card .table-actions .booking-delete-btn {
+        background: none; border: none; padding: 0; margin: 0; cursor: pointer; font-size: 16px; line-height: 1; color: #bcc1c6; vertical-align: middle;
     }
-    .booking-action-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0;
-        border-radius: 10px;
-        padding: 0;
-        font-weight: 600;
-        font-size: 0.76rem;
-        line-height: 1;
-        width: 42px;
-        height: 36px;
-        white-space: nowrap;
-    }
-    .booking-action-label {
-        display: none;
-        line-height: 1;
-    }
-    .booking-action-btn i {
-        font-size: 0.82rem;
-    }
+    .bookings-table .table-actions .booking-delete-btn i,
+    .booking-mobile-card .table-actions .booking-delete-btn i { position: relative; top: 1px; }
     .bookings-empty {
         padding: 2.5rem 1rem;
         text-align: center;
@@ -270,16 +258,6 @@
         font-weight: 600;
         color: #1b3552;
         text-align: right;
-    }
-    .bookings-mobile-list .booking-action-btn {
-        width: auto;
-        height: auto;
-        min-width: 0;
-        gap: 0.45rem;
-        padding: 0.55rem 0.8rem;
-    }
-    .bookings-mobile-list .booking-action-label {
-        display: inline;
     }
     @media (max-width: 991.98px) {
         .bookings-table-desktop {
@@ -525,18 +503,18 @@
                                     </span>
                                 </td>
                                 <td class="text-right">
-                                    <div class="booking-actions justify-content-end">
-                                        <a href="{{ route('bookings.show', $booking->id) }}" class="btn btn-outline-primary booking-action-btn" title="View reservation">
-                                            <i class="bi bi-eye"></i>
+                                    <div class="table-actions">
+                                        <a href="{{ route('bookings.show', $booking->id) }}" title="{{ __('View') }}">
+                                            <i class="ik ik-eye f-16"></i>
                                         </a>
-                                        <a href="{{ route('bookings.edit', $booking->id) }}" class="btn btn-primary booking-action-btn" title="Edit reservation">
-                                            <i class="bi bi-pencil-square"></i>
+                                        <a href="{{ route('bookings.edit', $booking->id) }}" title="{{ __('Edit') }}">
+                                            <i class="ik ik-edit-2 f-16 text-primary"></i>
                                         </a>
-                                        <form method="POST" action="{{ route('bookings.destroy', $booking->id) }}" onsubmit="return confirm('Delete this reservation permanently?');" class="m-0">
+                                        <form method="POST" action="{{ route('bookings.destroy', $booking->id) }}" onsubmit="return confirm(@json(__('Delete this reservation permanently?')));" class="booking-delete-form m-0">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-outline-danger booking-action-btn" title="Delete reservation">
-                                                <i class="bi bi-trash"></i>
+                                            <button type="submit" class="booking-delete-btn" title="{{ __('Delete') }}">
+                                                <i class="ik ik-trash-2 f-16 text-danger"></i>
                                             </button>
                                         </form>
                                     </div>
@@ -623,20 +601,22 @@
                                 <span class="booking-secondary">No passengers</span>
                             @endif
                         </div>
-                        <div class="booking-actions">
-                            <a href="{{ route('bookings.show', $booking->id) }}" class="btn btn-outline-primary booking-action-btn flex-fill">
-                                <i class="bi bi-eye"></i>
-                            </a>
-                            <a href="{{ route('bookings.edit', $booking->id) }}" class="btn btn-primary booking-action-btn flex-fill">
-                                <i class="bi bi-pencil-square"></i>
-                            </a>
-                            <form method="POST" action="{{ route('bookings.destroy', $booking->id) }}" onsubmit="return confirm('Delete this reservation permanently?');" class="m-0 flex-fill">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-outline-danger booking-action-btn w-100">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
+                        <div class="d-flex align-items-center justify-content-end text-right" style="gap:0.5rem; flex-wrap:wrap;">
+                            <div class="table-actions">
+                                <a href="{{ route('bookings.show', $booking->id) }}" title="{{ __('View') }}">
+                                    <i class="ik ik-eye f-16"></i>
+                                </a>
+                                <a href="{{ route('bookings.edit', $booking->id) }}" title="{{ __('Edit') }}">
+                                    <i class="ik ik-edit-2 f-16 text-primary"></i>
+                                </a>
+                                <form method="POST" action="{{ route('bookings.destroy', $booking->id) }}" onsubmit="return confirm(@json(__('Delete this reservation permanently?')));" class="booking-delete-form m-0">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="booking-delete-btn" title="{{ __('Delete') }}">
+                                        <i class="ik ik-trash-2 f-16 text-danger"></i>
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 @empty

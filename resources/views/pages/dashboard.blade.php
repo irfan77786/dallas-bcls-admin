@@ -174,20 +174,9 @@
         .booking-status-pending { background: rgba(255, 193, 7, 0.18); color: #8f6500; }
         .booking-status-authorized { background: rgba(13, 110, 253, 0.12); color: #0a58ca; }
         .booking-status-default { background: rgba(108, 117, 125, 0.12); color: #495057; }
-        .booking-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
-        .bookings-table td.text-right .booking-actions { max-width: 100%; }
-        .booking-action-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.32rem;
-            border-radius: 10px;
-            padding: 0.32rem 0.5rem;
-            font-weight: 600;
-            font-size: 0.76rem;
-            line-height: 1;
-            justify-content: center;
-            white-space: nowrap;
-        }
+        .bookings-table .table-actions { text-align: right; }
+        .bookings-table .table-actions a { color: #bcc1c6; display: inline-block; margin-left: 8px; font-size: 16px; line-height: 1; }
+        .bookings-table .table-actions a:first-child { margin-left: 0; }
         .bookings-empty { padding: 2rem 1rem; text-align: center; color: #768597; }
     </style>
 @endpush
@@ -280,12 +269,12 @@
                                             </span>
                                         </td>
                                         <td class="text-right">
-                                            <div class="booking-actions justify-content-end">
-                                                <a href="{{ route('bookings.show', $booking->id) }}" class="btn btn-outline-primary booking-action-btn" title="View reservation">
-                                                    <i class="bi bi-eye"></i> View
+                                            <div class="table-actions">
+                                                <a href="{{ route('bookings.show', $booking->id) }}" title="{{ __('View') }}">
+                                                    <i class="ik ik-eye f-16"></i>
                                                 </a>
-                                                <a href="{{ route('bookings.edit', $booking->id) }}" class="btn btn-primary booking-action-btn" title="Edit reservation">
-                                                    <i class="bi bi-pencil-square"></i> Edit
+                                                <a href="{{ route('bookings.edit', $booking->id) }}" title="{{ __('Edit') }}">
+                                                    <i class="ik ik-edit-2 f-16 text-primary"></i>
                                                 </a>
                                             </div>
                                         </td>
