@@ -49,6 +49,7 @@ class BookingEmailPayloadBuilder
             'phone' => $passenger->phone_number,
             'pickup_location' => $booking->pickup_location,
             'dropoff_location' => $booking->dropoff_location,
+            'stop_locations' => array_values(array_filter((array) ($booking->stop_locations ?? []), fn ($v) => is_string($v) && trim($v) !== '')),
             'hours' => $booking->breakdown?->total_hours,
             'pickup_date' => $pickupDate,
             'pickup_time' => $pickupTime,
@@ -72,6 +73,16 @@ class BookingEmailPayloadBuilder
             ] : null,
             'service_option_label' => self::serviceOptionLabel($booking->service_option),
             'luggage_count' => $booking->luggage_count,
+            'account' => [
+                'company_number' => $booking->account_company_number,
+                'company_name' => $booking->account_company_name,
+                'company_email' => $booking->account_company_email,
+                'company_phone' => $booking->account_company_phone,
+                'company_address' => $booking->account_company_address,
+                'billing_name' => $booking->account_billing_name,
+                'billing_email' => $booking->account_billing_email,
+                'billing_phone' => $booking->account_billing_phone,
+            ],
         ];
     }
 

@@ -32,7 +32,7 @@
             <p style="font-size: 12px; margin: 0 0 10px;">Thank you for booking on behalf of {{ $bookingData['passenger_name'] ?? 'the passenger' }}. Your booking has been successfully confirmed. Below are the booking details:</p>
             @else
             <p style="font-size: 12px; margin: 0 0 10px;"><b>Dear {{ $bookingData['passenger_name'] ?? 'Valued Customer' }},</b></p>
-            <p style="font-size: 12px; margin: 0 0 10px;">Thank u for choosing our service. Your booking has been successfully confirmed. Below are your booking details:</p>
+            <p style="font-size: 12px; margin: 0 0 10px;">Thank you for choosing our service. Your booking has been successfully confirmed. Below are your booking details:</p>
             @endif
 
             {{-- Booker Information (if not sending directly to booker) --}}
@@ -121,6 +121,13 @@
                         <td class="detail-value" style="width: 60%; color: #333; padding: 3px 0; box-sizing: border-box; word-wrap: break-word; vertical-align: top;">{{ $bookingData['pickup_location'] ?? 'N/A' }}</td>
                     </tr>
 
+                    @foreach(($bookingData['stop_locations'] ?? []) as $i => $stopLocation)
+                    <tr class="detail-row">
+                        <td class="detail-label" style="font-weight: bold; color: #555; width: 40%; min-width: 140px; padding: 3px 5px 3px 0; box-sizing: border-box; vertical-align: top;">Stop {{ $i + 1 }}:</td>
+                        <td class="detail-value" style="width: 60%; color: #333; padding: 3px 0; box-sizing: border-box; word-wrap: break-word; vertical-align: top;">{{ $stopLocation }}</td>
+                    </tr>
+                    @endforeach
+
                     @if($bookingData['dropoff_location'])
                     <tr class="detail-row">
                         <td class="detail-label" style="font-weight: bold; color: #555; width: 40%; min-width: 140px; padding: 3px 5px 3px 0; box-sizing: border-box; vertical-align: top;">Dropoff Location:</td>
@@ -182,6 +189,22 @@
             </div>
             @endif
 
+            @if(!empty($bookingData['account']['company_name']))
+            <div class="booking-details" style="background-color: #f8f9fa; border-radius: 4px; margin: 20px 0;">
+                <h3 style="background: #9e7c1e; margin: -10px -10px 10px -10px; padding: 6px; font-size: 14px; color: #fff; border-radius: 4px 4px 0 0;">Account &amp; Billing Contact</h3>
+                <table cellpadding="0" cellspacing="0" width="100%" style="font-size: 12px; padding: 6px;">
+                    <tr><td style="font-weight:bold; width:40%; padding:3px 5px 3px 0;">Company #:</td><td style="padding:3px 0;">{{ $bookingData['account']['company_number'] ?: 'N/A' }}</td></tr>
+                    <tr><td style="font-weight:bold; width:40%; padding:3px 5px 3px 0;">Company Name:</td><td style="padding:3px 0;">{{ $bookingData['account']['company_name'] }}</td></tr>
+                    <tr><td style="font-weight:bold; width:40%; padding:3px 5px 3px 0;">Company Email:</td><td style="padding:3px 0;">{{ $bookingData['account']['company_email'] ?: 'N/A' }}</td></tr>
+                    <tr><td style="font-weight:bold; width:40%; padding:3px 5px 3px 0;">Company Phone:</td><td style="padding:3px 0;">{{ $bookingData['account']['company_phone'] ?: 'N/A' }}</td></tr>
+                    <tr><td style="font-weight:bold; width:40%; padding:3px 5px 3px 0;">Company Address:</td><td style="padding:3px 0;">{{ $bookingData['account']['company_address'] ?: 'N/A' }}</td></tr>
+                    <tr><td style="font-weight:bold; width:40%; padding:3px 5px 3px 0;">Billing Name:</td><td style="padding:3px 0;">{{ $bookingData['account']['billing_name'] ?: 'N/A' }}</td></tr>
+                    <tr><td style="font-weight:bold; width:40%; padding:3px 5px 3px 0;">Billing Email:</td><td style="padding:3px 0;">{{ $bookingData['account']['billing_email'] ?: 'N/A' }}</td></tr>
+                    <tr><td style="font-weight:bold; width:40%; padding:3px 5px 3px 0;">Billing Phone:</td><td style="padding:3px 0;">{{ $bookingData['account']['billing_phone'] ?: 'N/A' }}</td></tr>
+                </table>
+            </div>
+            @endif
+
             {{-- Trip Routing Information --}}
             @if(!empty($bookingData['pickup_location']) || !empty($bookingData['dropoff_location']) || !empty($bookingData['hours']))
             <div class="booking-details" style="background-color: #f8f9fa; border-radius: 4px; margin: 20px 0;">
@@ -194,6 +217,13 @@
                         <td class="detail-value" style="width: 60%; color: #333; padding: 3px 0; box-sizing: border-box; word-wrap: break-word; vertical-align: top;">{{ $bookingData['pickup_location'] }}</td>
                     </tr>
                     @endif
+
+                    @foreach(($bookingData['stop_locations'] ?? []) as $i => $stopLocation)
+                    <tr class="detail-row">
+                        <td class="detail-label" style="font-weight: bold; color: #555; width: 40%; min-width: 140px; padding: 3px 5px 3px 0; box-sizing: border-box; vertical-align: top;">Stop {{ $i + 1 }}:</td>
+                        <td class="detail-value" style="width: 60%; color: #333; padding: 3px 0; box-sizing: border-box; word-wrap: break-word; vertical-align: top;">{{ $stopLocation }}</td>
+                    </tr>
+                    @endforeach
 
                     @if(!empty($bookingData['hours']))
                     <tr class="detail-row">

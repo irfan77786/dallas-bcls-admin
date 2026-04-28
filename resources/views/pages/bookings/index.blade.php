@@ -77,9 +77,9 @@
     .bookings-table th:nth-child(1),
     .bookings-table td:nth-child(1) { width: 10%; }
     .bookings-table th:nth-child(2),
-    .bookings-table td:nth-child(2) { width: 9%; }
+    .bookings-table td:nth-child(2) { width: 11%; }
     .bookings-table th:nth-child(3),
-    .bookings-table td:nth-child(3) { width: 10%; }
+    .bookings-table td:nth-child(3) { width: 9%; }
     .bookings-table th:nth-child(4),
     .bookings-table td:nth-child(4) { width: 10%; }
     .bookings-table th:nth-child(5),
@@ -87,7 +87,7 @@
     .bookings-table th:nth-child(6),
     .bookings-table td:nth-child(6) { width: 9%; }
     .bookings-table th:nth-child(7),
-    .bookings-table td:nth-child(7) { width: 11%; }
+    .bookings-table td:nth-child(7) { width: 9%; }
     .bookings-table th:nth-child(8),
     .bookings-table td:nth-child(8) { width: 7%; }
     .bookings-table th:nth-child(9),
@@ -98,6 +98,11 @@
         white-space: normal;
         line-height: 1.25;
         max-width: 6.5rem;
+    }
+    .bookings-table thead th.col-pickup-datetime {
+        white-space: normal;
+        line-height: 1.25;
+        max-width: 7rem;
     }
     .bookings-table tbody tr:hover {
         background: #fbfdff;
@@ -138,7 +143,7 @@
         min-width: 0;
         max-width: 100%;
     }
-    .bookings-table tbody td:nth-child(3) {
+    .bookings-table tbody td:nth-child(4) {
         overflow: hidden;
         max-width: 0;
     }
@@ -434,12 +439,12 @@
                     <thead>
                         <tr>
                             <th>Booking</th>
+                            <th class="col-form-submitted">Submission date and time</th>
                             <th>Vehicle</th>
                             <th>Passenger(s)</th>
                             <th>Pickup</th>
                             <th>Drop-off</th>
-                            <th>Date &amp; Time</th>
-                            <th class="col-form-submitted">Form submitted date and time</th>
+                            <th class="col-pickup-datetime">Pickup date and time</th>
                             <th>Total</th>
                             <th>Payment</th>
                             <th class="text-right">Actions</th>
@@ -451,6 +456,17 @@
                                 <td>
                                     <div class="booking-id">{{ $booking->booking_id ?: 'Reservation #' . $booking->id }}</div>
                                     <div class="booking-id-sub">Record #{{ $booking->id }}</div>
+                                </td>
+                                <td>
+                                    @if($booking->created_at)
+                                        <div
+                                            class="js-form-submitted-local"
+                                            data-utc="{{ $booking->created_at->toIso8601String() }}"
+                                            data-layout="split"
+                                        ></div>
+                                    @else
+                                        <span class="booking-secondary">—</span>
+                                    @endif
                                 </td>
                                 <td>
                                     <div class="booking-primary">{{ $booking->vehicle->vehicle_name ?? 'N/A' }}</div>
@@ -481,17 +497,6 @@
                                 <td>
                                     <div class="booking-primary">{{ \Carbon\Carbon::parse($booking->pickup_date)->format('M d, Y') }}</div>
                                     <div class="booking-secondary">{{ substr((string) $booking->pickup_time, 0, 5) }}</div>
-                                </td>
-                                <td>
-                                    @if($booking->created_at)
-                                        <div
-                                            class="js-form-submitted-local"
-                                            data-utc="{{ $booking->created_at->toIso8601String() }}"
-                                            data-layout="split"
-                                        ></div>
-                                    @else
-                                        <span class="booking-secondary">—</span>
-                                    @endif
                                 </td>
                                 <td>
                                     <div class="booking-primary">${{ number_format((float) $booking->total_price, 2) }}</div>
@@ -561,11 +566,11 @@
                             <span class="booking-mobile-value" title="{{ $booking->dropoff_location }}">{{ $truncateWords($booking->dropoff_location, 3) }}</span>
                         </div>
                         <div class="booking-mobile-row">
-                            <span class="booking-mobile-label">Date</span>
+                            <span class="booking-mobile-label">Pickup date and time</span>
                             <span class="booking-mobile-value">{{ \Carbon\Carbon::parse($booking->pickup_date)->format('M d, Y') }} {{ substr((string) $booking->pickup_time, 0, 5) }}</span>
                         </div>
                         <div class="booking-mobile-row">
-                            <span class="booking-mobile-label">Form submitted time and date</span>
+                            <span class="booking-mobile-label">Submission date and time</span>
                             <span class="booking-mobile-value">
                                 @if($booking->created_at)
                                     <span

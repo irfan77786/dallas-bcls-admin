@@ -11,6 +11,7 @@ class Booking extends Model
 
     protected $casts = [
         'from_admin_reservation' => 'boolean',
+        'stop_locations' => 'array',
     ];
 
     protected $fillable = [
@@ -20,6 +21,7 @@ class Booking extends Model
         'vehicle_id',
         'pickup_location',
         'dropoff_location',
+        'stop_locations',
         'pickup_date',
         'pickup_time',
         'total_price',
@@ -34,6 +36,15 @@ class Booking extends Model
         'luggage_count',
         'service_option',
         'from_admin_reservation',
+        'account_id',
+        'account_company_number',
+        'account_company_name',
+        'account_company_email',
+        'account_company_phone',
+        'account_company_address',
+        'account_billing_name',
+        'account_billing_email',
+        'account_billing_phone',
         'stripe_customer_id',
         'stripe_payment_method_id',
     ];

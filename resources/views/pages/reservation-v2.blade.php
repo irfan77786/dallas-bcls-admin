@@ -62,6 +62,45 @@
     .reservation-v2-card textarea.form-control {
         min-height: 110px;
     }
+    .account-details-box {
+        border: 1px solid #e3e9f1;
+        border-radius: 12px;
+        background: #f8fbff;
+        padding: 0.85rem 0.9rem 0.2rem;
+        margin-bottom: 1rem;
+    }
+    .account-details-box .small-title {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #5f7083;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+    }
+    .account-readonly {
+        background: #edf2f8 !important;
+        color: #2c3e50;
+        cursor: not-allowed;
+    }
+    .stops-block {
+        border: 1px dashed #d3dbe6;
+        border-radius: 10px;
+        padding: 0.9rem 0.9rem 0.1rem;
+        background: #fbfdff;
+        margin-bottom: 1rem;
+    }
+    .select2-container--default .select2-selection--single {
+        min-height: 46px;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 44px;
+        padding-left: 12px;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 44px;
+    }
     .inline-option-bar {
         min-height: 46px;
         display: flex;
@@ -303,7 +342,23 @@
     $selectedVehicleLabel = $selectedVehicle
         ? $selectedVehicle->vehicle_name . ' • ' . $selectedVehicle->number_of_passengers . ' pax • ' . $selectedVehicle->luggage_capacity . ' bags'
         : 'Select vehicle';
+    $selectedAccount = ($accounts ?? collect())->firstWhere('id', (int) $formValue('account_id'));
+    $displayAccount = [
+        'company_number' => $selectedAccount?->company_number ?? $formValue('account_company_number'),
+        'company_name' => $selectedAccount?->company_name ?? $formValue('account_company_name'),
+        'email' => $selectedAccount?->email ?? $formValue('account_company_email'),
+        'phone' => $selectedAccount ? \App\Models\Account::formatUsPhone($selectedAccount->phone) : $formValue('account_company_phone'),
+        'address' => $selectedAccount?->address ?? $formValue('account_company_address'),
+        'billing_name' => $selectedAccount?->billingContact?->name ?? $formValue('account_billing_name'),
+        'billing_email' => $selectedAccount?->billingContact?->email ?? $formValue('account_billing_email'),
+        'billing_phone' => $selectedAccount?->billingContact ? \App\Models\Account::formatUsPhone($selectedAccount->billingContact->phone) : $formValue('account_billing_phone'),
+    ];
     $bookingForSomeoneElse = $formBool('booking_for_someone_else');
+    $stopLocations = $formValue('stop_locations', []);
+    if (!is_array($stopLocations)) {
+        $stopLocations = [];
+    }
+    $stopLocations = array_values(array_filter($stopLocations, fn($v) => is_string($v) && trim($v) !== ''));
     $returnServiceEnabled = $formBool('return_service');
     $flightDetailsEnabled = $formBool('no_flight_info', ! $isEditMode);
     $childSeatRequired = $formBool('child_seat_required');
@@ -349,6 +404,73 @@
 
                 <div class="reservation-v2-main-form">
                     <div class="form-row">
+                        <div class="form-group col-md-12">
+                            <label for="account_id">Account (optional)</label>
+                            <select class="form-control js-account-select" id="account_id" name="account_id" data-placeholder="Search account by company name">
+                                <option value="">Select account</option>
+                                @foreach(($accounts ?? collect()) as $acc)
+                                    <option
+                                        value="{{ $acc->id }}"
+                                        @selected((string) $formValue('account_id') === (string) $acc->id)
+                                        data-company-number="{{ $acc->company_number }}"
+                                        data-company-name="{{ $acc->company_name }}"
+                                        data-company-email="{{ $acc->email }}"
+                                        data-company-phone="{{ \App\Models\Account::formatUsPhone($acc->phone) }}"
+                                        data-company-address="{{ $acc->address }}"
+                                        data-billing-name="{{ $acc->billingContact?->name }}"
+                                        data-billing-email="{{ $acc->billingContact?->email }}"
+                                        data-billing-phone="{{ $acc->billingContact ? \App\Models\Account::formatUsPhone($acc->billingContact->phone) : '' }}"
+                                    >
+                                        {{ $acc->company_name }}{{ $acc->company_number ? ' (' . $acc->company_number . ')' : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <small class="form-text text-muted">Pick an account to auto-fill company and billing contact details.</small>
+                        </div>
+                    </div>
+
+                    <div class="account-details-box" id="account-details-box">
+                        <div class="small-title">Account details</div>
+                        <div class="form-row">
+                            <div class="form-group col-md-4">
+                                <label>Company #</label>
+                                <input type="text" class="form-control account-readonly" id="account_company_number_view" value="{{ $displayAccount['company_number'] }}" readonly>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label>Company name</label>
+                                <input type="text" class="form-control account-readonly" id="account_company_name_view" value="{{ $displayAccount['company_name'] }}" readonly>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label>Company email</label>
+                                <input type="text" class="form-control account-readonly" id="account_company_email_view" value="{{ $displayAccount['email'] }}" readonly>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label>Company phone</label>
+                                <input type="text" class="form-control account-readonly" id="account_company_phone_view" value="{{ $displayAccount['phone'] }}" readonly>
+                            </div>
+                            <div class="form-group col-md-8">
+                                <label>Company address</label>
+                                <input type="text" class="form-control account-readonly" id="account_company_address_view" value="{{ $displayAccount['address'] }}" readonly>
+                            </div>
+                        </div>
+                        <div class="small-title">Billing contact</div>
+                        <div class="form-row">
+                            <div class="form-group col-md-4">
+                                <label>Name</label>
+                                <input type="text" class="form-control account-readonly" id="account_billing_name_view" value="{{ $displayAccount['billing_name'] }}" readonly>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label>Email</label>
+                                <input type="text" class="form-control account-readonly" id="account_billing_email_view" value="{{ $displayAccount['billing_email'] }}" readonly>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label>Phone</label>
+                                <input type="text" class="form-control account-readonly" id="account_billing_phone_view" value="{{ $displayAccount['billing_phone'] }}" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
                         <div class="form-group col-md-6">
                             <label>Passenger first name <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" name="first_name" value="{{ $formValue('first_name') }}" required>
@@ -358,12 +480,12 @@
                             <input type="text" class="form-control" name="last_name" value="{{ $formValue('last_name') }}" required>
                         </div>
                         <div class="form-group col-md-6">
-                            <label>Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" name="email" value="{{ $formValue('email') }}" required>
+                            <label>Email</label>
+                            <input type="email" class="form-control" name="email" value="{{ $formValue('email') }}">
                         </div>
                         <div class="form-group col-md-6">
-                            <label>Phone <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="number" value="{{ $formValue('number') }}" required>
+                            <label>Phone</label>
+                            <input type="text" class="form-control" name="number" value="{{ $formValue('number') }}">
                         </div>
                     </div>
 
@@ -424,6 +546,38 @@
                                     <option value="{{ $h }}" @selected($formValue('select_hours', '3') == $h)>{{ $h }} hour(s)</option>
                                 @endfor
                             </select>
+                        </div>
+                    </div>
+
+                    <div class="stops-block" id="wrap-stops">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="mb-0 font-weight-bold">Stops (optional)</label>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-stop">
+                                <i class="ik ik-plus"></i> Add stop
+                            </button>
+                        </div>
+                        <div id="stops-container">
+                            @foreach($stopLocations as $idx => $stop)
+                                <div class="form-group position-relative stop-item" data-stop-index="{{ $idx + 1 }}">
+                                    <label for="stop_location_{{ $idx + 1 }}" class="stop-label">Stop {{ $idx + 1 }}</label>
+                                    <div class="d-flex" style="gap:8px;">
+                                        <input
+                                            type="text"
+                                            class="form-control stop-location-input"
+                                            id="stop_location_{{ $idx + 1 }}"
+                                            name="stop_locations[]"
+                                            value="{{ $stop }}"
+                                            placeholder="Address, airport, hotel..."
+                                            autocomplete="off"
+                                            spellcheck="false"
+                                        >
+                                        <button type="button" class="btn btn-outline-danger btn-remove-stop" title="Remove stop">
+                                            <i class="ik ik-x"></i>
+                                        </button>
+                                    </div>
+                                    <div id="stop-suggestions-reservation-{{ $idx + 1 }}" class="location-suggestions" aria-live="polite"></div>
+                                </div>
+                            @endforeach
                         </div>
                     </div>
 
@@ -546,10 +700,13 @@
                                     <input type="hidden" name="meet_option" id="meet-option" value="{{ $meetOld === 'curbside' || $meetOld === 'inside' ? $meetOld : '' }}">
                                 </div>
                             </div>
-                            <div class="form-group col-md-6">
-                                <label for="note">Notes for the chauffeur</label>
-                                <input type="text" class="form-control" id="note" name="note" value="{{ $formValue('note') }}" placeholder="Special requests, luggage, gate…">
-                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-12">
+                            <label for="note">Trip notes</label>
+                            <input type="text" class="form-control" id="note" name="note" value="{{ $formValue('note') }}" placeholder="Special requests, luggage, gate...">
                         </div>
                     </div>
 
@@ -852,6 +1009,7 @@ window.initReservationPlaces = function () {
 
     setupCustomAutocomplete('pickup_location', 'pickup-suggestions-reservation', 'is_airport');
     setupCustomAutocomplete('dropoff_location', 'dropoff-suggestions-reservation', null);
+    window.setupReservationPlacesAutocomplete = setupCustomAutocomplete;
 };
 </script>
 <script src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsApiKey }}&libraries=places&callback=initReservationPlaces" async defer></script>
@@ -865,6 +1023,7 @@ window.initReservationPlaces = function () {
     var tokenEl = document.querySelector('meta[name="csrf-token"]');
     var token = tokenEl ? tokenEl.getAttribute('content') : '';
     var reservationStripeEnabled = @json(!empty($stripeEnabled));
+    var isEditMode = @json((bool) $isEditMode);
     var submitUrl = form.getAttribute('action') || @json(route('reservation.store'));
     var finalizeUrl = @json(route('reservation.finalize'));
 
@@ -891,8 +1050,10 @@ window.initReservationPlaces = function () {
         var dropoff = document.getElementById('dropoff_location');
         var returnCheckbox = document.getElementById('return_service');
         var returnFields = document.getElementById('return-fields');
+        var wrapStops = document.getElementById('wrap-stops');
 
-        if (wrapDropoff) wrapDropoff.classList.toggle('d-none', hourly);
+        var hideDropoff = hourly && !isEditMode;
+        if (wrapDropoff) wrapDropoff.classList.toggle('d-none', hideDropoff);
         if (wrapHours) wrapHours.classList.toggle('d-none', !hourly);
 
         if (dropoff) {
@@ -901,11 +1062,61 @@ window.initReservationPlaces = function () {
         }
 
         if (wrapReturn) wrapReturn.classList.toggle('d-none', hourly);
+        if (wrapStops) wrapStops.classList.toggle('d-none', hourly);
         if (hourly && returnCheckbox) {
             returnCheckbox.checked = false;
             if (returnFields) returnFields.classList.add('d-none');
             toggleReturnRequired(false);
         }
+    }
+
+    function reindexStops() {
+        var rows = Array.prototype.slice.call(document.querySelectorAll('#stops-container .stop-item'));
+        rows.forEach(function (row, idx) {
+            var n = idx + 1;
+            row.setAttribute('data-stop-index', String(n));
+            var label = row.querySelector('.stop-label');
+            if (label) {
+                label.textContent = 'Stop ' + n;
+                label.setAttribute('for', 'stop_location_' + n);
+            }
+            var input = row.querySelector('.stop-location-input');
+            if (input) input.id = 'stop_location_' + n;
+            var suggest = row.querySelector('.location-suggestions');
+            if (suggest) suggest.id = 'stop-suggestions-reservation-' + n;
+        });
+    }
+
+    function bindStopAutocomplete(row) {
+        var input = row ? row.querySelector('.stop-location-input') : null;
+        var suggest = row ? row.querySelector('.location-suggestions') : null;
+        if (!input || !suggest) return;
+        if (window.setupReservationPlacesAutocomplete) {
+            window.setupReservationPlacesAutocomplete(input.id, suggest.id, null);
+        }
+    }
+
+    function makeStopRow(value) {
+        var container = document.getElementById('stops-container');
+        if (!container) return null;
+        var next = container.querySelectorAll('.stop-item').length + 1;
+        var wrap = document.createElement('div');
+        wrap.className = 'form-group position-relative stop-item';
+        wrap.setAttribute('data-stop-index', String(next));
+        wrap.innerHTML =
+            '<label for="stop_location_' + next + '" class="stop-label">Stop ' + next + '</label>' +
+            '<div class="d-flex" style="gap:8px;">' +
+                '<input type="text" class="form-control stop-location-input" id="stop_location_' + next + '" name="stop_locations[]" placeholder="Address, airport, hotel..." autocomplete="off" spellcheck="false">' +
+                '<button type="button" class="btn btn-outline-danger btn-remove-stop" title="Remove stop"><i class="ik ik-x"></i></button>' +
+            '</div>' +
+            '<div id="stop-suggestions-reservation-' + next + '" class="location-suggestions" aria-live="polite"></div>';
+        container.appendChild(wrap);
+        var input = wrap.querySelector('.stop-location-input');
+        if (input && typeof value === 'string') {
+            input.value = value;
+        }
+        bindStopAutocomplete(wrap);
+        return wrap;
     }
 
     function toggleFlightFields() {
@@ -1010,6 +1221,115 @@ window.initReservationPlaces = function () {
             summaryEl.textContent = 'Calculated on submit';
             helpEl.textContent = 'Leave custom amount blank to use the selected vehicle fare.';
         }
+    }
+
+    function setAccountDetailFields(data) {
+        var map = {
+            account_company_number_view: data.companyNumber || '',
+            account_company_name_view: data.companyName || '',
+            account_company_email_view: data.companyEmail || '',
+            account_company_phone_view: data.companyPhone || '',
+            account_company_address_view: data.companyAddress || '',
+            account_billing_name_view: data.billingName || '',
+            account_billing_email_view: data.billingEmail || '',
+            account_billing_phone_view: data.billingPhone || ''
+        };
+        Object.keys(map).forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.value = map[id];
+        });
+    }
+
+    function syncAccountFromSelect() {
+        var sel = document.getElementById('account_id');
+        if (!sel) return;
+        var selectedId = (sel.value || '').trim();
+        if (!selectedId) {
+            setAccountDetailFields({});
+            return;
+        }
+
+        // Most reliable: fetch fresh details by id (works for native select + Select2 + AJAX mode).
+        fetch('{{ url('/accounts') }}/' + encodeURIComponent(selectedId) + '/edit-data', {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).then(function (r) {
+            if (!r.ok) throw new Error('Failed');
+            return r.json();
+        }).then(function (payload) {
+            var a = payload && payload.account ? payload.account : null;
+            if (!a) {
+                setAccountDetailFields({});
+                return;
+            }
+            setAccountDetailFields({
+                companyNumber: a.company_number || '',
+                companyName: a.company_name || '',
+                companyEmail: a.email || '',
+                companyPhone: a.phone || '',
+                companyAddress: a.address || '',
+                billingName: a.billing && a.billing.name ? a.billing.name : '',
+                billingEmail: a.billing && a.billing.email ? a.billing.email : '',
+                billingPhone: a.billing && a.billing.phone ? a.billing.phone : ''
+            });
+        }).catch(function () {
+            setAccountDetailFields({});
+        });
+        return;
+
+        // Prefer Select2-selected object data (works for AJAX-loaded options)
+        if (window.jQuery && typeof window.jQuery.fn.select2 === 'function') {
+            var s2 = window.jQuery(sel).select2('data');
+            if (s2 && s2.length && s2[0].id) {
+                var d = s2[0];
+                var hasRichData = !!(d.company_name || d.company_email || d.company_phone || d.company_address || d.billing_name || d.billing_email || d.billing_phone || d.company_number);
+                if (!hasRichData && d.element) {
+                    hasRichData = !!(
+                        d.element.getAttribute('data-company-name') ||
+                        d.element.getAttribute('data-company-email') ||
+                        d.element.getAttribute('data-company-phone') ||
+                        d.element.getAttribute('data-company-address') ||
+                        d.element.getAttribute('data-billing-name') ||
+                        d.element.getAttribute('data-billing-email') ||
+                        d.element.getAttribute('data-billing-phone') ||
+                        d.element.getAttribute('data-company-number')
+                    );
+                }
+                if (hasRichData) {
+                    var el = d.element || null;
+                    var getFromEl = function (attr) { return el ? (el.getAttribute(attr) || '') : ''; };
+                    setAccountDetailFields({
+                        companyNumber: d.company_number || getFromEl('data-company-number'),
+                        companyName: d.company_name || getFromEl('data-company-name'),
+                        companyEmail: d.company_email || getFromEl('data-company-email'),
+                        companyPhone: d.company_phone || getFromEl('data-company-phone'),
+                        companyAddress: d.company_address || getFromEl('data-company-address'),
+                        billingName: d.billing_name || getFromEl('data-billing-name'),
+                        billingEmail: d.billing_email || getFromEl('data-billing-email'),
+                        billingPhone: d.billing_phone || getFromEl('data-billing-phone')
+                    });
+                    return;
+                }
+            }
+        }
+
+        var opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) {
+            setAccountDetailFields({});
+            return;
+        }
+        setAccountDetailFields({
+            companyNumber: opt.getAttribute('data-company-number') || '',
+            companyName: opt.getAttribute('data-company-name') || '',
+            companyEmail: opt.getAttribute('data-company-email') || '',
+            companyPhone: opt.getAttribute('data-company-phone') || '',
+            companyAddress: opt.getAttribute('data-company-address') || '',
+            billingName: opt.getAttribute('data-billing-name') || '',
+            billingEmail: opt.getAttribute('data-billing-email') || '',
+            billingPhone: opt.getAttribute('data-billing-phone') || ''
+        });
     }
 
     function initCompactSelect(rootId) {
@@ -1170,6 +1490,80 @@ window.initReservationPlaces = function () {
     syncReturnFields();
     toggleFlightFields();
     syncDisplayedAmount();
+    syncAccountFromSelect();
+
+    var addStopBtn = document.getElementById('btn-add-stop');
+    var stopsContainer = document.getElementById('stops-container');
+    if (addStopBtn && stopsContainer) {
+        addStopBtn.addEventListener('click', function () {
+            makeStopRow('');
+        });
+
+        stopsContainer.addEventListener('click', function (e) {
+            var removeBtn = e.target.closest('.btn-remove-stop');
+            if (!removeBtn) return;
+            var row = removeBtn.closest('.stop-item');
+            if (row) row.remove();
+            reindexStops();
+        });
+
+        Array.prototype.slice.call(stopsContainer.querySelectorAll('.stop-item')).forEach(function (row) {
+            bindStopAutocomplete(row);
+        });
+        reindexStops();
+    }
+
+    var accountSelect = document.getElementById('account_id');
+    if (accountSelect) {
+        var accountOptionsUrl = @json(route('reservation.account-options'));
+        function repopulateAccountOptionsFromApi() {
+            return fetch(accountOptionsUrl, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).then(function (r) {
+                return r.ok ? r.json() : { results: [] };
+            }).then(function (payload) {
+                var results = Array.isArray(payload.results) ? payload.results : [];
+                if (!results.length) {
+                    return;
+                }
+                var keep = accountSelect.value || '';
+                // Keep first placeholder option only, then refill from API.
+                accountSelect.querySelectorAll('option').forEach(function (opt, idx) {
+                    if (idx !== 0) opt.remove();
+                });
+                results.forEach(function (row) {
+                    var opt = document.createElement('option');
+                    opt.value = String(row.id || '');
+                    opt.textContent = row.text || row.company_name || '';
+                    opt.setAttribute('data-company-number', row.company_number || '');
+                    opt.setAttribute('data-company-name', row.company_name || '');
+                    opt.setAttribute('data-company-email', row.company_email || '');
+                    opt.setAttribute('data-company-phone', row.company_phone || '');
+                    opt.setAttribute('data-company-address', row.company_address || '');
+                    opt.setAttribute('data-billing-name', row.billing_name || '');
+                    opt.setAttribute('data-billing-email', row.billing_email || '');
+                    opt.setAttribute('data-billing-phone', row.billing_phone || '');
+                    if (keep && String(row.id) === String(keep)) {
+                        opt.selected = true;
+                    }
+                    accountSelect.appendChild(opt);
+                });
+                // Native select; no Select2 sync.
+            }).catch(function () {
+                // keep existing options as fallback
+            });
+        }
+
+        // Preload only when Blade rendered no accounts.
+        if (accountSelect.options.length <= 1) {
+            repopulateAccountOptionsFromApi().then(syncAccountFromSelect);
+        }
+
+        accountSelect.addEventListener('change', syncAccountFromSelect);
+    }
 
     if (reservationStripeEnabled && typeof Stripe !== 'undefined') {
         var stripe = Stripe(@json($stripePublishableKey ?? ''));

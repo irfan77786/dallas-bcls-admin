@@ -369,6 +369,22 @@
       </div>
       @endif
 
+      @if(!empty($bookingData['account']['company_name']))
+      <div class="sections section-light">
+        <h2>Account & Billing Contact</h2>
+        <div class="section-content">
+          <div class="row"><div class="col-sm-3 no-top-padding"><strong class="mian-cc">Company #:</strong></div><div class="col-sm-9 no-top-padding">{{ $bookingData['account']['company_number'] ?: 'N/A' }}</div></div>
+          <div class="row"><div class="col-sm-3"><strong class="mian-cc">Company Name:</strong></div><div class="col-sm-9">{{ $bookingData['account']['company_name'] }}</div></div>
+          <div class="row"><div class="col-sm-3"><strong class="mian-cc">Company Email:</strong></div><div class="col-sm-9">{{ $bookingData['account']['company_email'] ?: 'N/A' }}</div></div>
+          <div class="row"><div class="col-sm-3"><strong class="mian-cc">Company Phone:</strong></div><div class="col-sm-9">{{ $bookingData['account']['company_phone'] ?: 'N/A' }}</div></div>
+          <div class="row"><div class="col-sm-3"><strong class="mian-cc">Company Address:</strong></div><div class="col-sm-9">{{ $bookingData['account']['company_address'] ?: 'N/A' }}</div></div>
+          <div class="row"><div class="col-sm-3"><strong class="mian-cc">Billing Name:</strong></div><div class="col-sm-9">{{ $bookingData['account']['billing_name'] ?: 'N/A' }}</div></div>
+          <div class="row"><div class="col-sm-3"><strong class="mian-cc">Billing Email:</strong></div><div class="col-sm-9">{{ $bookingData['account']['billing_email'] ?: 'N/A' }}</div></div>
+          <div class="row"><div class="col-sm-3"><strong class="mian-cc">Billing Phone:</strong></div><div class="col-sm-9">{{ $bookingData['account']['billing_phone'] ?: 'N/A' }}</div></div>
+        </div>
+      </div>
+      @endif
+
       {{-- Trip Routing Information --}}
       @if(!empty($bookingData['pickup_location']) || !empty($bookingData['dropoff_location']) || !empty($bookingData['hours']))
       <div class="sections section-light">
@@ -380,6 +396,13 @@
             <div class="col-sm-9 no-top-padding">{{ $bookingData['pickup_location'] }}</div>
           </div>
           @endif
+
+          @foreach(($bookingData['stop_locations'] ?? []) as $i => $stopLocation)
+          <div class="row">
+            <div class="col-sm-3"><strong class="mian-cc">Stop {{ $i + 1 }}:</strong></div>
+            <div class="col-sm-9">{{ $stopLocation }}</div>
+          </div>
+          @endforeach
 
           @if(!empty($bookingData['hours']))
           <div class="row">
