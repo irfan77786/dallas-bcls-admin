@@ -795,3 +795,15 @@ label {
   max-width: 100% !important;
   overflow: visible;
 }
+
+/* DataTables in card: theme.css used margin-left: -20px to “bleed” the table, which with body { overflow-x: hidden } clips the first column (header text, first column EIN, etc.) */
+.card .card-body .dataTables_wrapper .dataTable,
+.card .card-body .dataTables_wrapper table.dataTable {
+  margin-left: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+.card .card-body .dataTables_wrapper .dataTables_scroll {
+  margin-left: 0 !important;
+  width: 100% !important;
+}

@@ -16,6 +16,7 @@ use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ReservationController;
+use App\Http\Controllers\AccountController;
 use Illuminate\Support\Facades\Artisan;
 
 /*
@@ -84,6 +85,14 @@ Route::group(['middleware' => 'auth'], function () {
 
     // Dashboard Route
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Accounts (B2B company + billing contact)
+    Route::get('accounts', [AccountController::class, 'index'])->name('accounts.index');
+    Route::get('accounts/data', [AccountController::class, 'data'])->name('accounts.data');
+    Route::get('accounts/{account}/edit-data', [AccountController::class, 'forEdit'])->name('accounts.edit-data');
+    Route::post('accounts', [AccountController::class, 'store'])->name('accounts.store');
+    Route::put('accounts/{account}', [AccountController::class, 'update'])->name('accounts.update');
+    Route::delete('accounts/{account}', [AccountController::class, 'destroy'])->name('accounts.destroy');
 
     Route::get('/reservation', [ReservationController::class, 'create'])->name('reservation.create');
     Route::get('/reservation-v2', [ReservationController::class, 'createV2'])->name('reservation-v2');

@@ -58,6 +58,14 @@
 
                 <!-- Complaints & Suggestions -->
 
+                <!-- Accounts -->
+                <div class="nav-item {{ ($segment1 == 'accounts') ? 'active' : '' }}">
+                    <a href="{{ route('accounts.index') }}">
+                        <i class="ik ik-briefcase"></i>
+                        <span>{{ __('Accounts') }}</span>
+                    </a>
+                </div>
+
                 <!-- Manage Vehicles (last) -->
                 <div class="nav-item {{ ($segment1 == 'vehicle' || $segment1 == 'manage-cars') ? 'active' : '' }}">
                     <a href="/vehicle">
