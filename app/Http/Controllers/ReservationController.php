@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\CreateBookingDocs;
 use App\Services\BookingEmailPayloadBuilder;
 use App\Models\Airport;
+use App\Models\Account;
 use App\Models\Booker;
 use App\Models\Booking;
 use App\Models\FlightDetail;
@@ -69,10 +70,14 @@ class ReservationController extends Controller
         $airports = Schema::hasTable('airports')
             ? Airport::query()->orderBy('id')->get()
             : collect();
+        $accounts = Account::query()
+            ->with('billingContact')
+            ->orderBy('company_name')
+            ->get(['id', 'company_number', 'company_name', 'email', 'address', 'phone']);
         $childSeatPricePerSeatUsd = self::CHILD_SEAT_PRICE_PER_SEAT_USD;
 
         return view($view, array_merge(
-            compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airports', 'childSeatPricePerSeatUsd', 'pageTitle'),
+            compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airports', 'accounts', 'childSeatPricePerSeatUsd', 'pageTitle'),
             $extraData
         ));
     }
@@ -170,6 +175,40 @@ class ReservationController extends Controller
             'baseFare' => $breakdown['baseFare'] ?? null,
             'perKmRate' => $breakdown['perKmRate'] ?? null,
         ]);
+    }
+
+    /**
+     * Account select options for reservation form (Select2 + fallback native select).
+     */
+    public function accountOptions(Request $request)
+    {
+        $q = trim((string) $request->input('q', ''));
+        $query = Account::query()->with('billingContact')->orderBy('company_name');
+        if ($q !== '') {
+            $query->where(function ($w) use ($q) {
+                $w->where('company_name', 'like', '%' . $q . '%')
+                    ->orWhere('company_number', 'like', '%' . $q . '%')
+                    ->orWhere('email', 'like', '%' . $q . '%');
+            });
+        }
+
+        $rows = $query->limit(100)->get(['id', 'company_number', 'company_name', 'email', 'address', 'phone']);
+        $items = $rows->map(function (Account $acc) {
+            return [
+                'id' => $acc->id,
+                'text' => $acc->company_name . ($acc->company_number ? ' (' . $acc->company_number . ')' : ''),
+                'company_number' => $acc->company_number,
+                'company_name' => $acc->company_name,
+                'company_email' => $acc->email,
+                'company_phone' => Account::formatUsPhone($acc->phone),
+                'company_address' => $acc->address,
+                'billing_name' => $acc->billingContact?->name,
+                'billing_email' => $acc->billingContact?->email,
+                'billing_phone' => $acc->billingContact ? Account::formatUsPhone($acc->billingContact->phone) : null,
+            ];
+        })->values();
+
+        return response()->json(['results' => $items]);
     }
 
     public function store(Request $request)
@@ -284,8 +323,12 @@ class ReservationController extends Controller
                 }
 
                 $customBookingId = $this->nextPublicBookingId();
-                $dropoff = $trip['service_type'] === 'hourlyHire' ? '' : $trip['dropoff_location'];
+                $dropoff = (string) ($trip['dropoff_location'] ?? '');
                 $hours = $trip['service_type'] === 'hourlyHire' ? (int) $trip['select_hours'] : null;
+                $accountSnapshot = $this->selectedAccountSnapshot($validated);
+                $stopLocations = $trip['service_type'] === 'hourlyHire'
+                    ? []
+                    : $this->cleanStopLocations($validated['stop_locations'] ?? []);
 
                 $booking = Booking::create([
                     'booker_id' => $booker?->id,
@@ -294,6 +337,7 @@ class ReservationController extends Controller
                     'vehicle_id' => $vehicle->id,
                     'pickup_location' => $trip['pickup_location'],
                     'dropoff_location' => $dropoff,
+                    'stop_locations' => $stopLocations ?: null,
                     'pickup_date' => Carbon::createFromFormat('Y-m-d', $trip['pickup_date'])->format('Y-m-d'),
                     'pickup_time' => $trip['pickup_time'],
                     'total_price' => $totalPrice,
@@ -309,6 +353,15 @@ class ReservationController extends Controller
                         : null,
                     'service_option' => $validated['service_option'],
                     'from_admin_reservation' => true,
+                    'account_id' => $accountSnapshot['account_id'],
+                    'account_company_number' => $accountSnapshot['account_company_number'],
+                    'account_company_name' => $accountSnapshot['account_company_name'],
+                    'account_company_email' => $accountSnapshot['account_company_email'],
+                    'account_company_phone' => $accountSnapshot['account_company_phone'],
+                    'account_company_address' => $accountSnapshot['account_company_address'],
+                    'account_billing_name' => $accountSnapshot['account_billing_name'],
+                    'account_billing_email' => $accountSnapshot['account_billing_email'],
+                    'account_billing_phone' => $accountSnapshot['account_billing_phone'],
                 ]);
 
                 $passenger = $booking->passengers()->create([
@@ -638,14 +691,19 @@ class ReservationController extends Controller
                     }
                 }
 
-                $dropoff = $trip['service_type'] === 'hourlyHire' ? '' : $trip['dropoff_location'];
+                $dropoff = (string) ($trip['dropoff_location'] ?? '');
                 $hours = $trip['service_type'] === 'hourlyHire' ? (int) $trip['select_hours'] : null;
+                $accountSnapshot = $this->selectedAccountSnapshot($validated);
+                $stopLocations = $trip['service_type'] === 'hourlyHire'
+                    ? []
+                    : $this->cleanStopLocations($validated['stop_locations'] ?? []);
 
                 $booking->update([
                     'booker_id' => $booker?->id,
                     'vehicle_id' => $vehicle->id,
                     'pickup_location' => $trip['pickup_location'],
                     'dropoff_location' => $dropoff,
+                    'stop_locations' => $stopLocations ?: null,
                     'pickup_date' => Carbon::createFromFormat('Y-m-d', $trip['pickup_date'])->format('Y-m-d'),
                     'pickup_time' => $trip['pickup_time'],
                     'total_price' => $totalPrice,
@@ -660,6 +718,15 @@ class ReservationController extends Controller
                         : null,
                     'service_option' => $validated['service_option'],
                     'from_admin_reservation' => true,
+                    'account_id' => $accountSnapshot['account_id'],
+                    'account_company_number' => $accountSnapshot['account_company_number'],
+                    'account_company_name' => $accountSnapshot['account_company_name'],
+                    'account_company_email' => $accountSnapshot['account_company_email'],
+                    'account_company_phone' => $accountSnapshot['account_company_phone'],
+                    'account_company_address' => $accountSnapshot['account_company_address'],
+                    'account_billing_name' => $accountSnapshot['account_billing_name'],
+                    'account_billing_email' => $accountSnapshot['account_billing_email'],
+                    'account_billing_phone' => $accountSnapshot['account_billing_phone'],
                 ]);
 
                 if (! $forOthers && $existingBooker) {
@@ -1000,6 +1067,10 @@ class ReservationController extends Controller
             $request->merge(['pax_count' => 1]);
         }
 
+        $request->merge([
+            'stop_locations' => $this->cleanStopLocations($request->input('stop_locations', [])),
+        ]);
+
         $this->mergeServiceOptionToServiceType($request);
     }
 
@@ -1080,10 +1151,21 @@ class ReservationController extends Controller
     {
         $rules = [
             'vehicle_id' => ['required', 'exists:vehicles,id'],
+            'account_id' => ['nullable', 'exists:accounts,id'],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255'],
-            'number' => ['required', 'string', 'max:30'],
+            'email' => [
+                Rule::requiredIf(fn () => $requirePaymentMethod || filled($request->input('payment_method_id'))),
+                'nullable',
+                'email',
+                'max:255',
+            ],
+            'number' => [
+                Rule::requiredIf(fn () => $requirePaymentMethod || filled($request->input('payment_method_id'))),
+                'nullable',
+                'string',
+                'max:30',
+            ],
             'custom_total_price' => ['nullable', 'numeric', 'min:0.01'],
             'booking_for_someone_else' => ['nullable', 'boolean'],
             'booker_first_name' => [Rule::requiredIf(fn () => $request->boolean('booking_for_someone_else')), 'nullable', 'string', 'max:255'],
@@ -1115,6 +1197,8 @@ class ReservationController extends Controller
             'pax_count' => ['required', 'integer', 'min:1', 'max:99'],
             'luggage_count' => ['nullable', 'integer', 'min:0', 'max:99'],
             'service_option' => ['required', 'string', Rule::in(['from_airport', 'to_airport', 'point_to_point', 'hourly_as_directed'])],
+            'stop_locations' => ['nullable', 'array'],
+            'stop_locations.*' => ['nullable', 'string', 'max:500'],
         ];
 
         if ($requirePaymentMethod) {
@@ -1158,6 +1242,7 @@ class ReservationController extends Controller
             'booker_number' => $booker?->phone_number ?? $passenger?->booker_number,
             'pickup_location' => $booking->pickup_location,
             'dropoff_location' => $booking->dropoff_location,
+            'stop_locations' => array_values(array_filter((array) ($booking->stop_locations ?? []), fn ($v) => is_string($v) && trim($v) !== '')),
             'pickup_date' => $booking->pickup_date,
             'pickup_time' => substr((string) $booking->pickup_time, 0, 5),
             'return_service' => (bool) $returnService,
@@ -1175,10 +1260,87 @@ class ReservationController extends Controller
             'luggage_count' => $booking->luggage_count,
             'service_option' => $serviceOption,
             'vehicle_id' => $booking->vehicle_id,
+            'account_id' => $booking->account_id,
+            'account_company_number' => $booking->account_company_number,
+            'account_company_name' => $booking->account_company_name,
+            'account_company_email' => $booking->account_company_email,
+            'account_company_phone' => $booking->account_company_phone,
+            'account_company_address' => $booking->account_company_address,
+            'account_billing_name' => $booking->account_billing_name,
+            'account_billing_email' => $booking->account_billing_email,
+            'account_billing_phone' => $booking->account_billing_phone,
             'select_hours' => $breakdown?->total_hours ?: 3,
             'custom_total_price' => $customTripAmount > 0 ? $customTripAmount : null,
             'is_airport' => in_array($serviceOption, ['from_airport', 'to_airport'], true) || $hasFlightDetails,
         ];
+    }
+
+    private function selectedAccountSnapshot(array $validated): array
+    {
+        $id = (isset($validated['account_id']) && $validated['account_id'] !== null)
+            ? (int) $validated['account_id']
+            : null;
+
+        if (! $id) {
+            return [
+                'account_id' => null,
+                'account_company_number' => null,
+                'account_company_name' => null,
+                'account_company_email' => null,
+                'account_company_phone' => null,
+                'account_company_address' => null,
+                'account_billing_name' => null,
+                'account_billing_email' => null,
+                'account_billing_phone' => null,
+            ];
+        }
+
+        $account = Account::query()->with('billingContact')->find($id);
+        if (! $account) {
+            return [
+                'account_id' => null,
+                'account_company_number' => null,
+                'account_company_name' => null,
+                'account_company_email' => null,
+                'account_company_phone' => null,
+                'account_company_address' => null,
+                'account_billing_name' => null,
+                'account_billing_email' => null,
+                'account_billing_phone' => null,
+            ];
+        }
+
+        return [
+            'account_id' => $account->id,
+            'account_company_number' => $account->company_number,
+            'account_company_name' => $account->company_name,
+            'account_company_email' => $account->email,
+            'account_company_phone' => Account::formatUsPhone($account->phone),
+            'account_company_address' => $account->address,
+            'account_billing_name' => $account->billingContact?->name,
+            'account_billing_email' => $account->billingContact?->email,
+            'account_billing_phone' => Account::formatUsPhone($account->billingContact?->phone),
+        ];
+    }
+
+    private function cleanStopLocations(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($raw as $value) {
+            if (! is_string($value)) {
+                continue;
+            }
+            $trimmed = trim($value);
+            if ($trimmed !== '') {
+                $out[] = $trimmed;
+            }
+        }
+
+        return array_values($out);
     }
 
     /**
@@ -1219,6 +1381,7 @@ class ReservationController extends Controller
         if ($serviceType === 'pointToPoint') {
             $rules['dropoff_location'] = ['required', 'string', 'max:500'];
         } elseif ($serviceType === 'hourlyHire') {
+            $rules['dropoff_location'] = ['nullable', 'string', 'max:500'];
             $rules['select_hours'] = ['required', 'integer', 'min:1', 'max:24'];
         }
 
