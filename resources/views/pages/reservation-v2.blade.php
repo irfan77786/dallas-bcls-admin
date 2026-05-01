@@ -17,7 +17,7 @@
         border-radius: 18px;
         background: #fff;
         box-shadow: 0 12px 38px rgba(15, 35, 60, 0.08);
-        overflow: hidden;
+        overflow: visible;
     }
     .reservation-v2-card .card-body {
         padding: 1.5rem;
@@ -88,18 +88,6 @@
         padding: 0.9rem 0.9rem 0.1rem;
         background: #fbfdff;
         margin-bottom: 1rem;
-    }
-    .select2-container--default .select2-selection--single {
-        min-height: 46px;
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem;
-    }
-    .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 44px;
-        padding-left: 12px;
-    }
-    .select2-container--default .select2-selection--single .select2-selection__arrow {
-        height: 44px;
     }
     .inline-option-bar {
         min-height: 46px;
@@ -343,6 +331,9 @@
         ? $selectedVehicle->vehicle_name . ' • ' . $selectedVehicle->number_of_passengers . ' pax • ' . $selectedVehicle->luggage_capacity . ' bags'
         : 'Select vehicle';
     $selectedAccount = ($accounts ?? collect())->firstWhere('id', (int) $formValue('account_id'));
+    $selectedAccountLabel = $selectedAccount
+        ? ($selectedAccount->company_name . ($selectedAccount->company_number ? ' (' . $selectedAccount->company_number . ')' : ''))
+        : 'Select account';
     $displayAccount = [
         'company_number' => $selectedAccount?->company_number ?? $formValue('account_company_number'),
         'company_name' => $selectedAccount?->company_name ?? $formValue('account_company_name'),
@@ -405,31 +396,63 @@
                 <div class="reservation-v2-main-form">
                     <div class="form-row">
                         <div class="form-group col-md-12">
-                            <label for="account_id">Account (optional)</label>
-                            <select class="form-control js-account-select" id="account_id" name="account_id" data-placeholder="Search account by company name">
-                                <option value="">Select account</option>
-                                @foreach(($accounts ?? collect()) as $acc)
-                                    <option
-                                        value="{{ $acc->id }}"
-                                        @selected((string) $formValue('account_id') === (string) $acc->id)
-                                        data-company-number="{{ $acc->company_number }}"
-                                        data-company-name="{{ $acc->company_name }}"
-                                        data-company-email="{{ $acc->email }}"
-                                        data-company-phone="{{ \App\Models\Account::formatUsPhone($acc->phone) }}"
-                                        data-company-address="{{ $acc->address }}"
-                                        data-billing-name="{{ $acc->billingContact?->name }}"
-                                        data-billing-email="{{ $acc->billingContact?->email }}"
-                                        data-billing-phone="{{ $acc->billingContact ? \App\Models\Account::formatUsPhone($acc->billingContact->phone) : '' }}"
-                                    >
-                                        {{ $acc->company_name }}{{ $acc->company_number ? ' (' . $acc->company_number . ')' : '' }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <small class="form-text text-muted">Pick an account to auto-fill company and billing contact details.</small>
+                            <label for="account-select-trigger">Account (optional)</label>
+                            <div class="compact-select" id="account-select">
+                                <button type="button" class="compact-select-trigger" id="account-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                                    <span class="compact-select-value">{{ $selectedAccountLabel }}</span>
+                                </button>
+                                <span class="compact-select-arrow"><i class="bi bi-chevron-down"></i></span>
+                                <div class="compact-select-panel">
+                                    <input type="text" class="compact-select-search" placeholder="Type to search accounts…" autocomplete="off" aria-label="Search accounts">
+                                    <ul class="compact-select-list" role="listbox" tabindex="-1">
+                                        <li
+                                            class="compact-select-option {{ (string) $formValue('account_id') === '' ? 'selected' : '' }}"
+                                            data-value=""
+                                            data-label="Select account"
+                                            role="option"
+                                            aria-selected="{{ (string) $formValue('account_id') === '' ? 'true' : 'false' }}"
+                                        >
+                                            <div>
+                                                <div class="compact-select-option-main">Select account</div>
+                                            </div>
+                                        </li>
+                                        @foreach(($accounts ?? collect()) as $acc)
+                                            @php
+                                                $accMain = $acc->company_name . ($acc->company_number ? ' (' . $acc->company_number . ')' : '');
+                                                $accSub = trim(collect([$acc->email, $acc->company_number ? '#' . $acc->company_number : null])->filter()->implode(' · '));
+                                                $accFilter = mb_strtolower(trim(
+                                                    ($acc->company_name ?? '') . ' '
+                                                    . ($acc->company_number ?? '') . ' '
+                                                    . ($acc->email ?? '') . ' '
+                                                    . ($acc->billingContact?->name ?? '') . ' '
+                                                    . ($acc->billingContact?->email ?? '')
+                                                ), 'UTF-8');
+                                            @endphp
+                                            <li
+                                                class="compact-select-option {{ (string) $formValue('account_id') === (string) $acc->id ? 'selected' : '' }}"
+                                                data-value="{{ $acc->id }}"
+                                                data-label="{{ $accMain }}"
+                                                data-filter-text="{{ $accFilter }}"
+                                                role="option"
+                                                aria-selected="{{ (string) $formValue('account_id') === (string) $acc->id ? 'true' : 'false' }}"
+                                            >
+                                                <div>
+                                                    <div class="compact-select-option-main">{{ $acc->company_name }}{{ $acc->company_number ? ' (' . $acc->company_number . ')' : '' }}</div>
+                                                    @if($accSub !== '')
+                                                        <div class="compact-select-option-sub">{{ $accSub }}</div>
+                                                    @endif
+                                                </div>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                                <input type="hidden" name="account_id" id="account_id" value="{{ $formValue('account_id') }}">
+                            </div>
+                            <small class="form-text text-muted">Pick an account to auto-fill company and billing contact details. Open the list and type to filter by name, number, or email.</small>
                         </div>
                     </div>
 
-                    <div class="account-details-box" id="account-details-box">
+                    <div class="account-details-box {{ (string) $formValue('account_id', '') === '' ? 'd-none' : '' }}" id="account-details-box">
                         <div class="small-title">Account details</div>
                         <div class="form-row">
                             <div class="form-group col-md-4">
@@ -1223,6 +1246,14 @@ window.initReservationPlaces = function () {
         }
     }
 
+    function updateAccountDetailsBoxVisibility() {
+        var box = document.getElementById('account-details-box');
+        var sel = document.getElementById('account_id');
+        if (!box || !sel) return;
+        var hasAccount = (sel.value || '').trim() !== '';
+        box.classList.toggle('d-none', !hasAccount);
+    }
+
     function setAccountDetailFields(data) {
         var map = {
             account_company_number_view: data.companyNumber || '',
@@ -1238,6 +1269,7 @@ window.initReservationPlaces = function () {
             var el = document.getElementById(id);
             if (el) el.value = map[id];
         });
+        updateAccountDetailsBoxVisibility();
     }
 
     function syncAccountFromSelect() {
@@ -1248,6 +1280,9 @@ window.initReservationPlaces = function () {
             setAccountDetailFields({});
             return;
         }
+
+        // Show the details panel and clear stale values while the row loads.
+        setAccountDetailFields({});
 
         // Most reliable: fetch fresh details by id (works for native select + Select2 + AJAX mode).
         fetch('{{ url('/accounts') }}/' + encodeURIComponent(selectedId) + '/edit-data', {
@@ -1382,8 +1417,9 @@ window.initReservationPlaces = function () {
         function filter(query) {
             var normalized = (query || '').toLowerCase().trim();
             options.forEach(function (option) {
-                var text = option.textContent.toLowerCase();
-                option.style.display = normalized === '' || text.indexOf(normalized) !== -1 ? '' : 'none';
+                var attr = option.getAttribute('data-filter-text');
+                var haystack = (attr !== null && attr !== '' ? attr : option.textContent).toLowerCase();
+                option.style.display = normalized === '' || haystack.indexOf(normalized) !== -1 ? '' : 'none';
             });
         }
 
@@ -1432,6 +1468,115 @@ window.initReservationPlaces = function () {
                 }
             });
         }
+    }
+
+    function applyAccountCompactUiFromHidden() {
+        var root = document.getElementById('account-select');
+        var hidden = document.getElementById('account_id');
+        if (!root || !hidden) return;
+        var list = root.querySelector('.compact-select-list');
+        var labelEl = root.querySelector('.compact-select-value');
+        if (!list || !labelEl) return;
+        var want = hidden.value !== null && hidden.value !== undefined ? String(hidden.value) : '';
+        var label = 'Select account';
+        Array.prototype.slice.call(list.querySelectorAll('.compact-select-option')).forEach(function (li) {
+            var dv = li.getAttribute('data-value');
+            dv = dv === null || dv === undefined ? '' : String(dv);
+            var match = dv === want;
+            li.classList.toggle('selected', match);
+            li.setAttribute('aria-selected', match ? 'true' : 'false');
+            if (match) {
+                label = li.getAttribute('data-label') || li.textContent.trim() || label;
+            }
+        });
+        labelEl.textContent = label;
+    }
+
+    function maybeHydrateReservationAccounts(done) {
+        var root = document.getElementById('account-select');
+        var list = root ? root.querySelector('.compact-select-list') : null;
+        if (!root || !list) {
+            done();
+            return;
+        }
+        var hasAccounts = Array.prototype.slice.call(list.querySelectorAll('.compact-select-option')).some(function (li) {
+            var v = li.getAttribute('data-value');
+            return v !== null && String(v) !== '';
+        });
+        if (hasAccounts) {
+            done();
+            return;
+        }
+        var accountOptionsUrl = @json(route('reservation.account-options'));
+        var join = accountOptionsUrl.indexOf('?') >= 0 ? '&' : '?';
+        fetch(accountOptionsUrl + join + 'q=' + encodeURIComponent(''), {
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        }).then(function (r) {
+            return r.ok ? r.json() : { results: [] };
+        }).then(function (payload) {
+            var rows = Array.isArray(payload.results) ? payload.results : [];
+            var hiddenEl = document.getElementById('account_id');
+            var saved = hiddenEl && hiddenEl.value ? String(hiddenEl.value) : '';
+            rows.forEach(function (row) {
+                if (row == null || row.id == null || String(row.id) === '') {
+                    return;
+                }
+                var main = row.text || row.company_name || ('Account #' + row.id);
+                var subParts = [];
+                if (row.company_email) subParts.push(String(row.company_email));
+                if (row.company_number) subParts.push('#' + String(row.company_number));
+                var sub = subParts.join(' · ');
+                var filterBits = [
+                    row.company_name,
+                    row.company_number,
+                    row.company_email,
+                    row.billing_name,
+                    row.billing_email,
+                ].filter(function (x) {
+                    return x != null && String(x).trim() !== '';
+                }).join(' ').toLowerCase();
+                var li = document.createElement('li');
+                li.className = 'compact-select-option';
+                li.setAttribute('role', 'option');
+                li.setAttribute('data-value', String(row.id));
+                li.setAttribute('data-label', main);
+                li.setAttribute('data-filter-text', filterBits);
+                if (saved && String(row.id) === saved) {
+                    li.classList.add('selected');
+                    li.setAttribute('aria-selected', 'true');
+                } else {
+                    li.setAttribute('aria-selected', 'false');
+                }
+                var wrap = document.createElement('div');
+                var mainDiv = document.createElement('div');
+                mainDiv.className = 'compact-select-option-main';
+                mainDiv.textContent = main;
+                wrap.appendChild(mainDiv);
+                if (sub) {
+                    var subDiv = document.createElement('div');
+                    subDiv.className = 'compact-select-option-sub';
+                    subDiv.textContent = sub;
+                    wrap.appendChild(subDiv);
+                }
+                li.appendChild(wrap);
+                list.appendChild(li);
+            });
+            Array.prototype.slice.call(list.querySelectorAll('.compact-select-option[data-value=""]')).forEach(function (blank) {
+                if (saved) {
+                    blank.classList.remove('selected');
+                    blank.setAttribute('aria-selected', 'false');
+                }
+            });
+            applyAccountCompactUiFromHidden();
+        }).catch(function () {
+            /* keep placeholder row only */
+        }).finally(function () {
+            done();
+        });
     }
 
     var serviceOptionSelect = document.getElementById('service_option');
@@ -1485,6 +1630,15 @@ window.initReservationPlaces = function () {
     initCompactSelect('pickup-flight-select');
     initCompactSelect('meet-option-select');
     initCompactSelect('vehicle-select');
+    maybeHydrateReservationAccounts(function () {
+        initCompactSelect('account-select');
+        var accountHidden = document.getElementById('account_id');
+        if (accountHidden) {
+            accountHidden.addEventListener('change', syncAccountFromSelect);
+            applyAccountCompactUiFromHidden();
+            syncAccountFromSelect();
+        }
+    });
     toggleServiceUi();
     syncBookingForSomeoneElse();
     syncReturnFields();
@@ -1511,58 +1665,6 @@ window.initReservationPlaces = function () {
             bindStopAutocomplete(row);
         });
         reindexStops();
-    }
-
-    var accountSelect = document.getElementById('account_id');
-    if (accountSelect) {
-        var accountOptionsUrl = @json(route('reservation.account-options'));
-        function repopulateAccountOptionsFromApi() {
-            return fetch(accountOptionsUrl, {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            }).then(function (r) {
-                return r.ok ? r.json() : { results: [] };
-            }).then(function (payload) {
-                var results = Array.isArray(payload.results) ? payload.results : [];
-                if (!results.length) {
-                    return;
-                }
-                var keep = accountSelect.value || '';
-                // Keep first placeholder option only, then refill from API.
-                accountSelect.querySelectorAll('option').forEach(function (opt, idx) {
-                    if (idx !== 0) opt.remove();
-                });
-                results.forEach(function (row) {
-                    var opt = document.createElement('option');
-                    opt.value = String(row.id || '');
-                    opt.textContent = row.text || row.company_name || '';
-                    opt.setAttribute('data-company-number', row.company_number || '');
-                    opt.setAttribute('data-company-name', row.company_name || '');
-                    opt.setAttribute('data-company-email', row.company_email || '');
-                    opt.setAttribute('data-company-phone', row.company_phone || '');
-                    opt.setAttribute('data-company-address', row.company_address || '');
-                    opt.setAttribute('data-billing-name', row.billing_name || '');
-                    opt.setAttribute('data-billing-email', row.billing_email || '');
-                    opt.setAttribute('data-billing-phone', row.billing_phone || '');
-                    if (keep && String(row.id) === String(keep)) {
-                        opt.selected = true;
-                    }
-                    accountSelect.appendChild(opt);
-                });
-                // Native select; no Select2 sync.
-            }).catch(function () {
-                // keep existing options as fallback
-            });
-        }
-
-        // Preload only when Blade rendered no accounts.
-        if (accountSelect.options.length <= 1) {
-            repopulateAccountOptionsFromApi().then(syncAccountFromSelect);
-        }
-
-        accountSelect.addEventListener('change', syncAccountFromSelect);
     }
 
     if (reservationStripeEnabled && typeof Stripe !== 'undefined') {

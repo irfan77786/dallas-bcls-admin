@@ -8,6 +8,7 @@ use App\Models\Airport;
 use App\Models\Account;
 use App\Models\Booker;
 use App\Models\Booking;
+use App\Models\BookingAccountSnapshot;
 use App\Models\FlightDetail;
 use App\Models\Payment;
 use App\Models\ReturnService;
@@ -47,6 +48,7 @@ class ReservationController extends Controller
             'booker',
             'returnService',
             'breakdown',
+            'accountSnapshot',
         ]);
 
         return $this->reservationView('pages.reservation-v2', 'Edit reservation', [
@@ -353,16 +355,9 @@ class ReservationController extends Controller
                         : null,
                     'service_option' => $validated['service_option'],
                     'from_admin_reservation' => true,
-                    'account_id' => $accountSnapshot['account_id'],
-                    'account_company_number' => $accountSnapshot['account_company_number'],
-                    'account_company_name' => $accountSnapshot['account_company_name'],
-                    'account_company_email' => $accountSnapshot['account_company_email'],
-                    'account_company_phone' => $accountSnapshot['account_company_phone'],
-                    'account_company_address' => $accountSnapshot['account_company_address'],
-                    'account_billing_name' => $accountSnapshot['account_billing_name'],
-                    'account_billing_email' => $accountSnapshot['account_billing_email'],
-                    'account_billing_phone' => $accountSnapshot['account_billing_phone'],
                 ]);
+
+                $this->syncBookingAccountSnapshot($booking, $accountSnapshot);
 
                 $passenger = $booking->passengers()->create([
                     'first_name' => $validated['first_name'],
@@ -407,7 +402,7 @@ class ReservationController extends Controller
                     ]);
                 }
 
-                return $booking->fresh(['vehicle', 'passengers', 'booker', 'breakdown']);
+                return $booking->fresh(['vehicle', 'passengers', 'booker', 'breakdown', 'accountSnapshot']);
             });
         } catch (\Throwable $e) {
             report($e);
@@ -462,7 +457,7 @@ class ReservationController extends Controller
                 $paymentMethod = \Stripe\PaymentMethod::retrieve($pmId);
                 $paymentMethod->attach(['customer' => $customer->id]);
 
-                // Same as website BookingController::completeBook — trip total only, automatic capture (default).
+                // Admin reservation: authorize only; capture later in Stripe Dashboard or via API.
                 $sanitizedPrice = (float) $totalPrice;
                 $amountInCents = (int) round($sanitizedPrice * 100);
 
@@ -471,6 +466,7 @@ class ReservationController extends Controller
                     'currency' => 'usd',
                     'customer' => $customer->id,
                     'payment_method' => $pmId,
+                    'capture_method' => 'manual',
                     'off_session' => true,
                     'confirm' => true,
                 ]);
@@ -718,16 +714,9 @@ class ReservationController extends Controller
                         : null,
                     'service_option' => $validated['service_option'],
                     'from_admin_reservation' => true,
-                    'account_id' => $accountSnapshot['account_id'],
-                    'account_company_number' => $accountSnapshot['account_company_number'],
-                    'account_company_name' => $accountSnapshot['account_company_name'],
-                    'account_company_email' => $accountSnapshot['account_company_email'],
-                    'account_company_phone' => $accountSnapshot['account_company_phone'],
-                    'account_company_address' => $accountSnapshot['account_company_address'],
-                    'account_billing_name' => $accountSnapshot['account_billing_name'],
-                    'account_billing_email' => $accountSnapshot['account_billing_email'],
-                    'account_billing_phone' => $accountSnapshot['account_billing_phone'],
                 ]);
+
+                $this->syncBookingAccountSnapshot($booking, $accountSnapshot);
 
                 if (! $forOthers && $existingBooker) {
                     $existingBooker->delete();
@@ -858,6 +847,7 @@ class ReservationController extends Controller
                     'currency' => 'usd',
                     'customer' => $customer->id,
                     'payment_method' => $pmId,
+                    'capture_method' => 'manual',
                     'off_session' => true,
                     'confirm' => true,
                 ]);
@@ -894,7 +884,7 @@ class ReservationController extends Controller
                 $booking->payment_status = $bookingStatus;
                 $booking->save();
 
-                $this->sendBookingEmails($booking->fresh(['vehicle', 'passengers', 'booker', 'breakdown']));
+                $this->sendBookingEmails($booking->fresh(['vehicle', 'passengers', 'booker', 'breakdown', 'accountSnapshot']));
 
                 return response()->json([
                     'success' => true,
@@ -967,7 +957,7 @@ class ReservationController extends Controller
                 $booking->payment_status = 'Paid';
                 $booking->save();
 
-                $this->sendBookingEmails($booking->fresh(['vehicle', 'passengers', 'booker', 'breakdown']));
+                $this->sendBookingEmails($booking->fresh(['vehicle', 'passengers', 'booker', 'breakdown', 'accountSnapshot']));
 
                 return response()->json([
                     'success' => true,
@@ -982,7 +972,7 @@ class ReservationController extends Controller
                 $booking->payment_status = 'Authorized';
                 $booking->save();
 
-                $this->sendBookingEmails($booking->fresh(['vehicle', 'passengers', 'booker', 'breakdown']));
+                $this->sendBookingEmails($booking->fresh(['vehicle', 'passengers', 'booker', 'breakdown', 'accountSnapshot']));
 
                 return response()->json([
                     'success' => true,
@@ -1002,7 +992,7 @@ class ReservationController extends Controller
     private function sendBookingEmails(Booking $booking): void
     {
         try {
-            $booking->load(['vehicle', 'passengers', 'booker', 'breakdown']);
+            $booking->load(['vehicle', 'passengers', 'booker', 'breakdown', 'accountSnapshot']);
             $bookingData = BookingEmailPayloadBuilder::build($booking);
 
             (new CreateBookingDocs($bookingData, (string) $booking->booking_id))->handle();
@@ -1260,15 +1250,15 @@ class ReservationController extends Controller
             'luggage_count' => $booking->luggage_count,
             'service_option' => $serviceOption,
             'vehicle_id' => $booking->vehicle_id,
-            'account_id' => $booking->account_id,
-            'account_company_number' => $booking->account_company_number,
-            'account_company_name' => $booking->account_company_name,
-            'account_company_email' => $booking->account_company_email,
-            'account_company_phone' => $booking->account_company_phone,
-            'account_company_address' => $booking->account_company_address,
-            'account_billing_name' => $booking->account_billing_name,
-            'account_billing_email' => $booking->account_billing_email,
-            'account_billing_phone' => $booking->account_billing_phone,
+            'account_id' => $booking->accountSnapshot?->account_id,
+            'account_company_number' => $booking->accountSnapshot?->account_company_number,
+            'account_company_name' => $booking->accountSnapshot?->account_company_name,
+            'account_company_email' => $booking->accountSnapshot?->account_company_email,
+            'account_company_phone' => $booking->accountSnapshot?->account_company_phone,
+            'account_company_address' => $booking->accountSnapshot?->account_company_address,
+            'account_billing_name' => $booking->accountSnapshot?->account_billing_name,
+            'account_billing_email' => $booking->accountSnapshot?->account_billing_email,
+            'account_billing_phone' => $booking->accountSnapshot?->account_billing_phone,
             'select_hours' => $breakdown?->total_hours ?: 3,
             'custom_total_price' => $customTripAmount > 0 ? $customTripAmount : null,
             'is_airport' => in_array($serviceOption, ['from_airport', 'to_airport'], true) || $hasFlightDetails,
@@ -1321,6 +1311,35 @@ class ReservationController extends Controller
             'account_billing_email' => $account->billingContact?->email,
             'account_billing_phone' => Account::formatUsPhone($account->billingContact?->phone),
         ];
+    }
+
+    private function syncBookingAccountSnapshot(Booking $booking, array $accountSnapshot): void
+    {
+        $accountId = $accountSnapshot['account_id'] ?? null;
+        $hasCompanyOrBilling = collect($accountSnapshot)
+            ->except('account_id')
+            ->contains(fn ($v) => filled($v));
+
+        if (! filled($accountId) && ! $hasCompanyOrBilling) {
+            $booking->accountSnapshot()->delete();
+
+            return;
+        }
+
+        BookingAccountSnapshot::query()->updateOrCreate(
+            ['booking_id' => $booking->id],
+            [
+                'account_id' => filled($accountId) ? $accountId : null,
+                'account_company_number' => $accountSnapshot['account_company_number'] ?? null,
+                'account_company_name' => $accountSnapshot['account_company_name'] ?? null,
+                'account_company_email' => $accountSnapshot['account_company_email'] ?? null,
+                'account_company_phone' => $accountSnapshot['account_company_phone'] ?? null,
+                'account_company_address' => $accountSnapshot['account_company_address'] ?? null,
+                'account_billing_name' => $accountSnapshot['account_billing_name'] ?? null,
+                'account_billing_email' => $accountSnapshot['account_billing_email'] ?? null,
+                'account_billing_phone' => $accountSnapshot['account_billing_phone'] ?? null,
+            ]
+        );
     }
 
     private function cleanStopLocations(mixed $raw): array

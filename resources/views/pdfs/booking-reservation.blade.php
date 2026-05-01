@@ -196,16 +196,40 @@
       <div style="display: table-row;">
         <div style="display: table-cell; vertical-align: middle; width: 62%;">
           @php
-          // Never fetch remote URLs during PDF render: slow/blocked networks hit max_execution_time.
           $logoData = '';
           $logoMime = 'image/png';
-          $localLogo = public_path('img/black-car-service-dallas-logo.png');
-          if (is_file($localLogo)) {
-              $logoData = base64_encode((string) file_get_contents($localLogo));
+          $logoUrl = (string) config('booking.reservation_logo_url');
+
+          foreach ([
+              public_path('img/black-car-service-dallas-logo.PNG'),
+              public_path('img/black-car-service-dallas-logo.png'),
+          ] as $localLogo) {
+              if (is_file($localLogo)) {
+                  $logoData = base64_encode((string) file_get_contents($localLogo));
+                  break;
+              }
+          }
+
+          if ($logoData === '' && filter_var($logoUrl, FILTER_VALIDATE_URL)) {
+              try {
+                  $resp = \Illuminate\Support\Facades\Http::timeout(15)->connectTimeout(5)->get($logoUrl);
+                  if ($resp->successful()) {
+                      $logoData = base64_encode($resp->body());
+                      $ct = $resp->header('Content-Type');
+                      if (is_string($ct)) {
+                          $guess = strtolower(trim(explode(';', $ct, 2)[0]));
+                          if (str_starts_with($guess, 'image/')) {
+                              $logoMime = $guess;
+                          }
+                      }
+                  }
+              } catch (\Throwable $e) {
+                  // Fallback to text heading below if network fails
+              }
           }
           @endphp
           @if($logoData !== '')
-          <img src="data:{{ $logoMime }};base64,{{ $logoData }}" alt="Logo" style="height: 60px;" />
+          <img src="data:{{ $logoMime }};base64,{{ $logoData }}" alt="Dallas Black Cars Limo Service" width="250" style="max-width: 250px; height: auto; display: inline-block; border: 0;" />
           @else
           <div style="font-weight: bold; font-size: 14px;">Dallas Black Cars Limo Service</div>
           @endif
