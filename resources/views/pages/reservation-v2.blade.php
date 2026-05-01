@@ -558,7 +558,7 @@
                             <div id="pickup-suggestions-reservation" class="location-suggestions" aria-live="polite"></div>
                         </div>
                         <div class="form-group col-md-6 position-relative" id="wrap-dropoff">
-                            <label for="dropoff_location">Drop-off location <span class="text-danger">*</span></label>
+                            <label for="dropoff_location">Drop-off location <span id="dropoff-required-star" class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="dropoff_location" name="dropoff_location" value="{{ $formValue('dropoff_location') }}" placeholder="Address, airport, hotel..." autocomplete="off" spellcheck="false">
                             <div id="dropoff-suggestions-reservation" class="location-suggestions" aria-live="polite"></div>
                         </div>
@@ -1075,9 +1075,11 @@ window.initReservationPlaces = function () {
         var returnFields = document.getElementById('return-fields');
         var wrapStops = document.getElementById('wrap-stops');
 
-        var hideDropoff = hourly && !isEditMode;
-        if (wrapDropoff) wrapDropoff.classList.toggle('d-none', hideDropoff);
+        if (wrapDropoff) wrapDropoff.classList.remove('d-none');
         if (wrapHours) wrapHours.classList.toggle('d-none', !hourly);
+
+        var dropoffStar = document.getElementById('dropoff-required-star');
+        if (dropoffStar) dropoffStar.classList.toggle('d-none', hourly);
 
         if (dropoff) {
             if (hourly) dropoff.removeAttribute('required');
