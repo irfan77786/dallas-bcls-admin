@@ -12,7 +12,7 @@ class BookingEmailPayloadBuilder
      */
     public static function build(Booking $booking): array
     {
-        $booking->loadMissing(['vehicle', 'passengers', 'booker', 'breakdown']);
+        $booking->loadMissing(['vehicle', 'passengers', 'booker', 'breakdown', 'accountSnapshot']);
         $passenger = $booking->passengers->first();
         if (! $passenger) {
             throw new \RuntimeException('Booking has no passenger.');
@@ -74,14 +74,14 @@ class BookingEmailPayloadBuilder
             'service_option_label' => self::serviceOptionLabel($booking->service_option),
             'luggage_count' => $booking->luggage_count,
             'account' => [
-                'company_number' => $booking->account_company_number,
-                'company_name' => $booking->account_company_name,
-                'company_email' => $booking->account_company_email,
-                'company_phone' => $booking->account_company_phone,
-                'company_address' => $booking->account_company_address,
-                'billing_name' => $booking->account_billing_name,
-                'billing_email' => $booking->account_billing_email,
-                'billing_phone' => $booking->account_billing_phone,
+                'company_number' => $booking->accountSnapshot?->account_company_number,
+                'company_name' => $booking->accountSnapshot?->account_company_name,
+                'company_email' => $booking->accountSnapshot?->account_company_email,
+                'company_phone' => $booking->accountSnapshot?->account_company_phone,
+                'company_address' => $booking->accountSnapshot?->account_company_address,
+                'billing_name' => $booking->accountSnapshot?->account_billing_name,
+                'billing_email' => $booking->accountSnapshot?->account_billing_email,
+                'billing_phone' => $booking->accountSnapshot?->account_billing_phone,
             ],
         ];
     }

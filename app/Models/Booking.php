@@ -36,15 +36,6 @@ class Booking extends Model
         'luggage_count',
         'service_option',
         'from_admin_reservation',
-        'account_id',
-        'account_company_number',
-        'account_company_name',
-        'account_company_email',
-        'account_company_phone',
-        'account_company_address',
-        'account_billing_name',
-        'account_billing_email',
-        'account_billing_phone',
         'stripe_customer_id',
         'stripe_payment_method_id',
     ];
@@ -82,4 +73,9 @@ class Booking extends Model
 {
     return $this->hasOne(BookingBreakdown::class, 'booking_id', 'id');
 }
+
+    public function accountSnapshot()
+    {
+        return $this->hasOne(BookingAccountSnapshot::class);
+    }
 }

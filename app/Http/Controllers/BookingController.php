@@ -180,6 +180,7 @@ public function show($id)
             'booker',
             'returnService',
             'breakdown',
+            'accountSnapshot',
         ])->findOrFail($id);
 
         $newBooking = DB::transaction(function () use ($booking) {
@@ -224,6 +225,12 @@ public function show($id)
                 }
             }
 
+            if ($booking->accountSnapshot) {
+                $newSnapshot = $booking->accountSnapshot->replicate();
+                $newSnapshot->booking_id = $newBooking->id;
+                $newSnapshot->save();
+            }
+
             return $newBooking;
         });
 
@@ -243,6 +250,7 @@ public function show($id)
             'booker',
             'returnService',
             'breakdown',
+            'accountSnapshot',
         ])->findOrFail($id);
 
         $request->validate([
@@ -324,14 +332,32 @@ public function show($id)
 
         $attachPath = is_file($pdfPath) && filesize($pdfPath) > 0 ? $pdfPath : null;
 
-        $sent = 0;
-        foreach ($customerRecipients as $email) {
-            Mail::to($email)->send(new BookingReservationComposerMail($bookingData, false, false, $attachPath));
-            $sent++;
-        }
-        foreach ($adminRecipients as $email) {
-            Mail::to($email)->send(new BookingReservationComposerMail($bookingData, true, false, $attachPath));
-            $sent++;
+        try {
+            $sent = 0;
+            foreach ($customerRecipients as $email) {
+                $this->sendComposerMailWithTransientRetries(function () use ($email, $bookingData, $attachPath) {
+                    Mail::to($email)->send(new BookingReservationComposerMail($bookingData, false, false, $attachPath));
+                });
+                $sent++;
+            }
+            foreach ($adminRecipients as $email) {
+                $this->sendComposerMailWithTransientRetries(function () use ($email, $bookingData, $attachPath) {
+                    Mail::to($email)->send(new BookingReservationComposerMail($bookingData, true, false, $attachPath));
+                });
+                $sent++;
+            }
+        } catch (\Throwable $e) {
+            Log::error('Booking composer mail send failed', [
+                'booking_id' => $booking->booking_id,
+                'message' => $e->getMessage(),
+            ]);
+            report($e);
+
+            $hint = $this->mailFailureHintFromException($e);
+
+            return $this->composerErrorResponse($request, [
+                'mail' => ['Could not send email: '.$e->getMessage().($hint ? ' '.$hint : '')],
+            ]);
         }
 
         $message = $sent . ' email(s) sent with booking PDF attached.';
@@ -351,6 +377,65 @@ public function show($id)
     /**
      * @param  array<string, array<int, string>|string>  $errors
      */
+    /**
+     * Retry a few times when the SMTP server returns a transient error (421, 450, 451, 452…).
+     */
+    private function sendComposerMailWithTransientRetries(callable $send, int $maxAttempts = 4): void
+    {
+        $last = null;
+
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            try {
+                $send();
+
+                return;
+            } catch (\Throwable $e) {
+                $last = $e;
+
+                if ($attempt >= $maxAttempts || ! $this->isTransientSmtpFailure($e)) {
+                    throw $e;
+                }
+
+                usleep((int) min(3_500_000, 300_000 * (2 ** ($attempt - 1))));
+            }
+        }
+
+        throw $last ?? new \RuntimeException('Mail send failed after retries.');
+    }
+
+    private function isTransientSmtpFailure(\Throwable $e): bool
+    {
+        $m = $e->getMessage();
+
+        if (preg_match('/\b(421|431|442|444|446|449|450|451|452|454)\b/', $m)) {
+            return true;
+        }
+
+        if (stripos($m, 'temporary') !== false && stripos($m, 'try') !== false) {
+            return true;
+        }
+
+        return stripos($m, 'try later') !== false;
+    }
+
+    private function mailFailureHintFromException(\Throwable $e): string
+    {
+        $m = strtolower($e->getMessage());
+
+        if (strpos($m, '451') !== false || strpos($m, 'temporary') !== false) {
+            return 'SMTP 451 usually means your mail server temporarily refused the message (overload, greylisting, or policy). '
+                . 'Wait a minute and try again; if it persists, ask your mail host about relay limits and that MAIL_FROM_ADDRESS / MAIL_MAILER '
+                . 'match what they allow for '.config('mail.default').'.';
+        }
+
+        if (strpos($m, '550') !== false && (strpos($m, 'not allowed') !== false || strpos($m, 'from') !== false)) {
+            return 'SMTP 550: the address in MAIL_FROM_ADDRESS must use a domain your cPanel account is allowed to send as '
+                . '(normally the same domain as MAIL_USERNAME). Do not put a random domain in the From header.';
+        }
+
+        return '';
+    }
+
     private function composerErrorResponse(Request $request, array $errors)
     {
         if ($request->expectsJson()) {
