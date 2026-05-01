@@ -17,6 +17,17 @@ use Illuminate\Support\Facades\Schema;
 
 class BookingController extends Controller
 {
+    private function nextPublicBookingId(): int
+    {
+        $latest = Booking::orderBy('id', 'desc')->first();
+        $lastNumericId = 41101;
+        if ($latest && preg_match('/(\d+)/', (string) $latest->booking_id, $matches)) {
+            $lastNumericId = (int) $matches[1] + 1;
+        }
+
+        return $lastNumericId;
+    }
+
     public function index(Request $request)
     {
         $perPage = (int) $request->input('per_page', 10);
@@ -160,6 +171,65 @@ public function show($id)
         return redirect()
             ->route('bookings.index')
             ->with('success', 'Reservation deleted successfully.');
+    }
+
+    public function duplicate($id)
+    {
+        $booking = Booking::with([
+            'passengers.flightDetail',
+            'booker',
+            'returnService',
+            'breakdown',
+        ])->findOrFail($id);
+
+        $newBooking = DB::transaction(function () use ($booking) {
+            $newBookerId = null;
+            if ($booking->booker) {
+                $newBooker = $booking->booker->replicate();
+                $newBooker->save();
+                $newBookerId = $newBooker->id;
+            }
+
+            $newReturnServiceId = null;
+            if ($booking->returnService) {
+                $newReturnService = $booking->returnService->replicate();
+                $newReturnService->save();
+                $newReturnServiceId = $newReturnService->id;
+            }
+
+            $newBooking = $booking->replicate();
+            $newBooking->booking_id = (string) $this->nextPublicBookingId();
+            $newBooking->booker_id = $newBookerId;
+            $newBooking->return_service_id = $newReturnServiceId;
+            $newBooking->payment_status = 'Pending';
+            $newBooking->stripe_customer_id = null;
+            $newBooking->stripe_payment_method_id = null;
+            $newBooking->save();
+
+            if ($booking->breakdown) {
+                $newBreakdown = $booking->breakdown->replicate();
+                $newBreakdown->booking_id = $newBooking->id;
+                $newBreakdown->save();
+            }
+
+            foreach ($booking->passengers as $passenger) {
+                $newPassenger = $passenger->replicate();
+                $newPassenger->booking_id = $newBooking->id;
+                $newPassenger->save();
+
+                if ($passenger->flightDetail) {
+                    $newFlight = $passenger->flightDetail->replicate();
+                    $newFlight->passenger_id = $newPassenger->id;
+                    $newFlight->save();
+                }
+            }
+
+            return $newBooking;
+        });
+
+        return redirect()
+            ->back()
+            ->with('success', 'Reservation duplicated successfully. Payment status set to Pending.');
     }
 
     /**

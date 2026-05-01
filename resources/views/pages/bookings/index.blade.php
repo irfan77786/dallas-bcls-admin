@@ -515,6 +515,12 @@
                                         <a href="{{ route('bookings.edit', $booking->id) }}" title="{{ __('Edit') }}">
                                             <i class="ik ik-edit-2 f-16 text-primary"></i>
                                         </a>
+                                        <form method="POST" action="{{ route('bookings.duplicate', $booking->id) }}" onsubmit="return confirm(@json(__('Duplicate this reservation?')));" class="booking-delete-form m-0">
+                                            @csrf
+                                            <button type="submit" class="booking-delete-btn" title="{{ __('Duplicate') }}">
+                                                <i class="ik ik-copy f-16 text-info"></i>
+                                            </button>
+                                        </form>
                                         <form method="POST" action="{{ route('bookings.destroy', $booking->id) }}" onsubmit="return confirm(@json(__('Delete this reservation permanently?')));" class="booking-delete-form m-0">
                                             @csrf
                                             @method('DELETE')
@@ -614,6 +620,12 @@
                                 <a href="{{ route('bookings.edit', $booking->id) }}" title="{{ __('Edit') }}">
                                     <i class="ik ik-edit-2 f-16 text-primary"></i>
                                 </a>
+                                <form method="POST" action="{{ route('bookings.duplicate', $booking->id) }}" onsubmit="return confirm(@json(__('Duplicate this reservation?')));" class="booking-delete-form m-0">
+                                    @csrf
+                                    <button type="submit" class="booking-delete-btn" title="{{ __('Duplicate') }}">
+                                        <i class="ik ik-copy f-16 text-info"></i>
+                                    </button>
+                                </form>
                                 <form method="POST" action="{{ route('bookings.destroy', $booking->id) }}" onsubmit="return confirm(@json(__('Delete this reservation permanently?')));" class="booking-delete-form m-0">
                                     @csrf
                                     @method('DELETE')
