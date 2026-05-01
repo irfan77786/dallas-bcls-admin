@@ -4,9 +4,14 @@
 @push('head')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-    .bookings-shell {
-        max-width: 1440px;
-        margin: 0 auto;
+    /* Full-width within main-content (avoid centered “narrow box” at low zoom / wide screens). */
+    .main-content .container-fluid.bookings-shell {
+        max-width: none;
+        width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+        padding-left: 0;
+        padding-right: 0;
     }
     .bookings-hero {
         margin-bottom: 1.5rem;
@@ -22,15 +27,15 @@
         margin-bottom: 0;
     }
     .bookings-panel {
-        border: none;
-        border-radius: 18px;
+        border: 1px solid #e3e9f0;
+        border-radius: 4px;
         overflow: hidden;
-        box-shadow: 0 12px 35px rgba(18, 38, 63, 0.08);
+        box-shadow: none;
     }
     .bookings-filter-bar {
-        background: linear-gradient(180deg, #f8fbff 0%, #f4f7fb 100%);
+        background: #f8fafc;
         border-bottom: 1px solid #e8eef5;
-        padding: 1.25rem 1.25rem 0.5rem;
+        padding: 0.85rem 0.85rem 0.5rem;
     }
     .bookings-filter-bar .form-control,
     .bookings-filter-bar .custom-select {
@@ -50,7 +55,7 @@
         font-size: 0.92rem;
     }
     .bookings-table-wrap {
-        padding: 0.85rem 1rem 1rem;
+        padding: 0.5rem 0.65rem 0.85rem;
     }
     .bookings-table {
         margin-bottom: 0;
