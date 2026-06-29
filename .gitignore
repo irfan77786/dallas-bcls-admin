@@ -30,3 +30,6 @@ Thumbs.db
 /website
 *.zip.git.zip
 admin.zip
+.git.zip
+admin.zip
+site_admin.zip
