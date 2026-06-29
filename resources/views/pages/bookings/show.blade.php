@@ -253,7 +253,7 @@
                     <div class="col-lg-3 col-md-6 mb-3">
                         <div class="summary-tile">
                             <div class="label">Passengers</div>
-                            <div class="value">{{ $booking->passengers ? $booking->passengers->count() : 0 }}</div>
+                            <div class="value">{{ $booking->pax_count ?? ($booking->passengers ? $booking->passengers->count() : 0) }}</div>
                         </div>
                     </div>
                     <div class="col-lg-3 col-md-6 mb-3">
@@ -331,11 +331,11 @@
                                         @if(filled($booking->vehicle->vehicle_code))
                                             <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Code</span><span>{{ $booking->vehicle->vehicle_code }}</span></li>
                                         @endif
-                                        @if(!is_null($booking->vehicle->number_of_passengers))
-                                            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Passengers</span><span>{{ $booking->vehicle->number_of_passengers }}</span></li>
+                                        @if(!is_null($booking->pax_count))
+                                            <li class="list-group-item d-flex justify-content-between"><span class="text-muted"># of passengers</span><span>{{ $booking->pax_count }}</span></li>
                                         @endif
-                                        @if(!is_null($booking->vehicle->luggage_capacity))
-                                            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Luggage</span><span>{{ $booking->vehicle->luggage_capacity }}</span></li>
+                                        @if(!is_null($booking->luggage_count))
+                                            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Luggage</span><span>{{ $booking->luggage_count }}</span></li>
                                         @endif
                                         @if(!is_null($booking->vehicle->base_fare))
                                             <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Base Fare</span><span>${{ number_format($booking->vehicle->base_fare, 2) }}</span></li>
