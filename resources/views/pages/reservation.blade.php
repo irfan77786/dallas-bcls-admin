@@ -449,12 +449,12 @@
                                 <input type="text" class="form-control" name="last_name" value="{{ old('last_name') }}" required>
                             </div>
                             <div class="form-group col-md-6">
-                                <label>Email <span class="text-danger">*</span></label>
-                                <input type="email" class="form-control" name="email" value="{{ old('email') }}" required>
+                                <label>Email</label>
+                                <input type="email" class="form-control" name="email" value="{{ old('email') }}">
                             </div>
                             <div class="form-group col-md-6">
-                                <label>Phone <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" name="number" value="{{ old('number') }}" required>
+                                <label>Phone</label>
+                                <input type="text" class="form-control" name="number" value="{{ old('number') }}">
                             </div>
                         </div>
                         <div class="custom-control custom-checkbox mb-3">
@@ -471,11 +471,11 @@
                                 <input type="text" class="form-control" name="booker_last_name" value="{{ old('booker_last_name') }}">
                             </div>
                             <div class="form-group col-md-6">
-                                <label>Booker email <span class="text-danger">*</span></label>
+                                <label>Booker email</label>
                                 <input type="email" class="form-control" name="booker_email" value="{{ old('booker_email') }}">
                             </div>
                             <div class="form-group col-md-6">
-                                <label>Booker phone <span class="text-danger">*</span></label>
+                                <label>Booker phone</label>
                                 <input type="text" class="form-control" name="booker_number" value="{{ old('booker_number') }}">
                             </div>
                         </div>

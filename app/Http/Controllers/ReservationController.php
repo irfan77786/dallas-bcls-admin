@@ -307,8 +307,8 @@ class ReservationController extends Controller
                     $booker = Booker::create([
                         'first_name' => $validated['booker_first_name'],
                         'last_name' => $validated['booker_last_name'],
-                        'email' => $validated['booker_email'],
-                        'phone_number' => $validated['booker_number'],
+                        'email' => $this->contactField($validated['booker_email'] ?? null),
+                        'phone_number' => $this->contactField($validated['booker_number'] ?? null),
                     ]);
                 }
 
@@ -360,13 +360,13 @@ class ReservationController extends Controller
                 $passenger = $booking->passengers()->create([
                     'first_name' => $validated['first_name'],
                     'last_name' => $validated['last_name'],
-                    'email' => $validated['email'],
-                    'phone_number' => $validated['number'],
+                    'email' => $this->contactField($validated['email'] ?? null),
+                    'phone_number' => $this->contactField($validated['number'] ?? null),
                     'is_booking_for_others' => $forOthers,
                     'booker_first_name' => $forOthers ? ($validated['booker_first_name'] ?? '') : '',
                     'booker_last_name' => $forOthers ? ($validated['booker_last_name'] ?? '') : '',
-                    'booker_email' => $forOthers ? ($validated['booker_email'] ?? '') : '',
-                    'booker_number' => $forOthers ? ($validated['booker_number'] ?? '') : '',
+                    'booker_email' => $forOthers ? $this->contactField($validated['booker_email'] ?? null) : '',
+                    'booker_number' => $forOthers ? $this->contactField($validated['booker_number'] ?? null) : '',
                 ]);
 
                 $booking->breakdown()->create([
@@ -437,20 +437,12 @@ class ReservationController extends Controller
                 \Stripe\Stripe::setApiKey($stripeSecret);
                 $pmId = $validated['payment_method_id'];
 
-                $customerName = $forOthers
-                    ? trim(($validated['booker_first_name'] ?? '') . ' ' . ($validated['booker_last_name'] ?? ''))
-                    : trim($validated['first_name'] . ' ' . $validated['last_name']);
-                $customerEmail = $forOthers ? $validated['booker_email'] : $validated['email'];
-                $customerPhone = $forOthers ? $validated['booker_number'] : $validated['number'];
-
-                $existing = \Stripe\Customer::all(['email' => $customerEmail, 'limit' => 1]);
-                $customer = count($existing->data) > 0
-                    ? $existing->data[0]
-                    : \Stripe\Customer::create([
-                        'email' => $customerEmail,
-                        'name' => $customerName,
-                        'phone' => $customerPhone,
-                    ]);
+                $customerDetails = $this->stripeCustomerDetails($validated, $forOthers);
+                $customer = $this->findOrCreateStripeCustomer(
+                    $customerDetails['email'],
+                    $customerDetails['name'],
+                    $customerDetails['phone']
+                );
 
                 $paymentMethod = \Stripe\PaymentMethod::retrieve($pmId);
                 $paymentMethod->attach(['customer' => $customer->id]);
@@ -652,16 +644,16 @@ class ReservationController extends Controller
                         $existingBooker->update([
                             'first_name' => $validated['booker_first_name'],
                             'last_name' => $validated['booker_last_name'],
-                            'email' => $validated['booker_email'],
-                            'phone_number' => $validated['booker_number'],
+                            'email' => $this->contactField($validated['booker_email'] ?? null),
+                            'phone_number' => $this->contactField($validated['booker_number'] ?? null),
                         ]);
                         $booker = $existingBooker;
                     } else {
                         $booker = Booker::create([
                             'first_name' => $validated['booker_first_name'],
                             'last_name' => $validated['booker_last_name'],
-                            'email' => $validated['booker_email'],
-                            'phone_number' => $validated['booker_number'],
+                            'email' => $this->contactField($validated['booker_email'] ?? null),
+                            'phone_number' => $this->contactField($validated['booker_number'] ?? null),
                         ]);
                     }
                 }
@@ -728,13 +720,13 @@ class ReservationController extends Controller
                 $passengerPayload = [
                     'first_name' => $validated['first_name'],
                     'last_name' => $validated['last_name'],
-                    'email' => $validated['email'],
-                    'phone_number' => $validated['number'],
+                    'email' => $this->contactField($validated['email'] ?? null),
+                    'phone_number' => $this->contactField($validated['number'] ?? null),
                     'is_booking_for_others' => $forOthers,
                     'booker_first_name' => $forOthers ? ($validated['booker_first_name'] ?? '') : '',
                     'booker_last_name' => $forOthers ? ($validated['booker_last_name'] ?? '') : '',
-                    'booker_email' => $forOthers ? ($validated['booker_email'] ?? '') : '',
-                    'booker_number' => $forOthers ? ($validated['booker_number'] ?? '') : '',
+                    'booker_email' => $forOthers ? $this->contactField($validated['booker_email'] ?? null) : '',
+                    'booker_number' => $forOthers ? $this->contactField($validated['booker_number'] ?? null) : '',
                 ];
 
                 if ($passenger) {
@@ -1053,6 +1045,12 @@ class ReservationController extends Controller
             $request->merge(['pax_count' => 1]);
         }
 
+        foreach (['email', 'number', 'booker_email', 'booker_number'] as $field) {
+            if ($request->input($field) === '') {
+                $request->merge([$field => null]);
+            }
+        }
+
         $request->merge([
             'stop_locations' => $this->cleanStopLocations($request->input('stop_locations', [])),
         ]);
@@ -1096,16 +1094,29 @@ class ReservationController extends Controller
             }
         }
 
-        $existing = \Stripe\Customer::all(['email' => $email, 'limit' => 1]);
-        if (count($existing->data) > 0) {
-            return $existing->data[0];
+        $email = trim($email);
+        $name = trim($name);
+        $phone = trim($phone);
+
+        if ($email !== '') {
+            $existing = \Stripe\Customer::all(['email' => $email, 'limit' => 1]);
+            if (count($existing->data) > 0) {
+                return $existing->data[0];
+            }
         }
 
-        return \Stripe\Customer::create([
-            'email' => $email,
-            'name' => $name,
-            'phone' => $phone,
-        ]);
+        $params = [];
+        if ($name !== '') {
+            $params['name'] = $name;
+        }
+        if ($email !== '') {
+            $params['email'] = $email;
+        }
+        if ($phone !== '') {
+            $params['phone'] = $phone;
+        }
+
+        return \Stripe\Customer::create($params);
     }
 
     private function storePendingPaymentIntent(Booking $booking, string $transactionId, float $amount): Payment
@@ -1140,24 +1151,14 @@ class ReservationController extends Controller
             'account_id' => ['nullable', 'exists:accounts,id'],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'email' => [
-                Rule::requiredIf(fn () => $requirePaymentMethod || filled($request->input('payment_method_id'))),
-                'nullable',
-                'email',
-                'max:255',
-            ],
-            'number' => [
-                Rule::requiredIf(fn () => $requirePaymentMethod || filled($request->input('payment_method_id'))),
-                'nullable',
-                'string',
-                'max:30',
-            ],
+            'email' => ['nullable', 'email', 'max:255'],
+            'number' => ['nullable', 'string', 'max:30'],
             'custom_total_price' => ['nullable', 'numeric', 'min:0.01'],
             'booking_for_someone_else' => ['nullable', 'boolean'],
             'booker_first_name' => [Rule::requiredIf(fn () => $request->boolean('booking_for_someone_else')), 'nullable', 'string', 'max:255'],
             'booker_last_name' => [Rule::requiredIf(fn () => $request->boolean('booking_for_someone_else')), 'nullable', 'string', 'max:255'],
-            'booker_email' => [Rule::requiredIf(fn () => $request->boolean('booking_for_someone_else')), 'nullable', 'email', 'max:255'],
-            'booker_number' => [Rule::requiredIf(fn () => $request->boolean('booking_for_someone_else')), 'nullable', 'string', 'max:30'],
+            'booker_email' => ['nullable', 'email', 'max:255'],
+            'booker_number' => ['nullable', 'string', 'max:30'],
             'pickup_flight_details' => ['nullable', 'string', 'max:500'],
             'flight_number' => ['nullable', 'string', 'max:50'],
             'meet_option' => ['nullable', 'string', Rule::in(['curbside', 'inside'])],
@@ -1336,6 +1337,15 @@ class ReservationController extends Controller
                 'account_billing_phone' => $accountSnapshot['account_billing_phone'] ?? null,
             ]
         );
+    }
+
+    private function contactField(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        return trim((string) $value);
     }
 
     private function cleanStopLocations(mixed $raw): array

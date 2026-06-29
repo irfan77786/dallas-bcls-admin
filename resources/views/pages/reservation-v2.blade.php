@@ -535,11 +535,11 @@
                                 <input type="text" class="form-control" name="booker_last_name" value="{{ $formValue('booker_last_name') }}">
                             </div>
                             <div class="form-group col-md-6">
-                                <label>Booker email <span class="text-danger">*</span></label>
+                                <label>Booker email</label>
                                 <input type="email" class="form-control" name="booker_email" value="{{ $formValue('booker_email') }}">
                             </div>
                             <div class="form-group col-md-6">
-                                <label>Booker phone <span class="text-danger">*</span></label>
+                                <label>Booker phone</label>
                                 <input type="text" class="form-control" name="booker_number" value="{{ $formValue('booker_number') }}">
                             </div>
                         </div>
