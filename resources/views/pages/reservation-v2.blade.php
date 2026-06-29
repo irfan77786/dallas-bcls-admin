@@ -1073,7 +1073,6 @@ window.initReservationPlaces = function () {
         var dropoff = document.getElementById('dropoff_location');
         var returnCheckbox = document.getElementById('return_service');
         var returnFields = document.getElementById('return-fields');
-        var wrapStops = document.getElementById('wrap-stops');
 
         if (wrapDropoff) wrapDropoff.classList.remove('d-none');
         if (wrapHours) wrapHours.classList.toggle('d-none', !hourly);
@@ -1087,7 +1086,6 @@ window.initReservationPlaces = function () {
         }
 
         if (wrapReturn) wrapReturn.classList.toggle('d-none', hourly);
-        if (wrapStops) wrapStops.classList.toggle('d-none', hourly);
         if (hourly && returnCheckbox) {
             returnCheckbox.checked = false;
             if (returnFields) returnFields.classList.add('d-none');

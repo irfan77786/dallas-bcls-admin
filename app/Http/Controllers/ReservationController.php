@@ -328,9 +328,7 @@ class ReservationController extends Controller
                 $dropoff = (string) ($trip['dropoff_location'] ?? '');
                 $hours = $trip['service_type'] === 'hourlyHire' ? (int) $trip['select_hours'] : null;
                 $accountSnapshot = $this->selectedAccountSnapshot($validated);
-                $stopLocations = $trip['service_type'] === 'hourlyHire'
-                    ? []
-                    : $this->cleanStopLocations($validated['stop_locations'] ?? []);
+                $stopLocations = $this->cleanStopLocations($validated['stop_locations'] ?? []);
 
                 $booking = Booking::create([
                     'booker_id' => $booker?->id,
@@ -690,9 +688,7 @@ class ReservationController extends Controller
                 $dropoff = (string) ($trip['dropoff_location'] ?? '');
                 $hours = $trip['service_type'] === 'hourlyHire' ? (int) $trip['select_hours'] : null;
                 $accountSnapshot = $this->selectedAccountSnapshot($validated);
-                $stopLocations = $trip['service_type'] === 'hourlyHire'
-                    ? []
-                    : $this->cleanStopLocations($validated['stop_locations'] ?? []);
+                $stopLocations = $this->cleanStopLocations($validated['stop_locations'] ?? []);
 
                 $booking->update([
                     'booker_id' => $booker?->id,
