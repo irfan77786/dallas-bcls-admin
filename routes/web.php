@@ -17,7 +17,7 @@ use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\AccountController;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Artisan; 
 
 /*
 |--------------------------------------------------------------------------
