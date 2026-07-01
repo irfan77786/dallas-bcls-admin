@@ -57,6 +57,7 @@ class ReservationController extends Controller
             'formMethod' => 'PUT',
             'formDefaults' => $this->reservationFormDefaults($booking),
             'bookingPaymentStatus' => $booking->payment_status,
+            'bookingTotalPrice' => $booking->total_price,
         ]);
     }
 
@@ -607,11 +608,6 @@ class ReservationController extends Controller
             $returnPrice = (float) $returnBreakdown['price'];
         }
 
-        $calculatedTotalPrice = round($basePrice + $returnPrice, 2);
-        $baseTripTotal = array_key_exists('custom_total_price', $validated) && $validated['custom_total_price'] !== null
-            ? round((float) $validated['custom_total_price'], 2)
-            : $calculatedTotalPrice;
-
         $wantsChildSeat = $request->boolean('child_seat_required');
         $childSeatType = $wantsChildSeat ? ($validated['child_seat_type'] ?? null) : null;
         $childSeatQty = $wantsChildSeat ? ($validated['child_seat_quantity'] ?? null) : null;
@@ -622,11 +618,16 @@ class ReservationController extends Controller
             ? round(self::CHILD_SEAT_PRICE_PER_SEAT_USD * $childSeatQtyInt, 2)
             : 0.0;
 
+        $calculatedTotalPrice = round($basePrice + $returnPrice, 2);
+        $baseTripTotal = array_key_exists('custom_total_price', $validated) && $validated['custom_total_price'] !== null
+            ? round((float) $validated['custom_total_price'], 2)
+            : $calculatedTotalPrice;
         $totalPrice = round($baseTripTotal + $childSeatFee, 2);
-        $forOthers = $request->boolean('booking_for_someone_else');
-        $wantsFlightFields = $request->boolean('no_flight_info');
         $hadLockedPayment = $this->bookingHasLockedPayment($booking);
         $originalTotalPrice = (float) $booking->total_price;
+
+        $forOthers = $request->boolean('booking_for_someone_else');
+        $wantsFlightFields = $request->boolean('no_flight_info');
 
         try {
             DB::transaction(function () use ($booking, $trip, $validated, $vehicle, $breakdown, $returnBreakdown, $totalPrice, $forOthers, $returnLeg, $wantsFlightFields, $childSeatFee, $childSeatType, $childSeatQty) {
@@ -779,7 +780,7 @@ class ReservationController extends Controller
                 }
 
                 $booking->payments()
-                    ->where('payment_status', 'Pending')
+                    ->whereIn('payment_status', ['Pending', 'Authorized', 'Paid'])
                     ->update(['amount' => $totalPrice]);
             });
         } catch (\Throwable $e) {
@@ -894,9 +895,27 @@ class ReservationController extends Controller
             }
         }
 
+        $stripeSyncResult = null;
+        if ($hadLockedPayment && round($originalTotalPrice, 2) !== round($totalPrice, 2)) {
+            $stripeSyncResult = $this->syncStripeAuthorizedAmount(
+                $booking->fresh(['payments']),
+                $totalPrice,
+                $originalTotalPrice
+            );
+        }
+
         $message = 'Reservation #' . $booking->booking_id . ' updated successfully.';
         if ($hadLockedPayment && round($originalTotalPrice, 2) !== round($totalPrice, 2)) {
-            $message .= ' Existing paid/authorized payment records were not changed.';
+            if ($stripeSyncResult && $stripeSyncResult['updated'] > 0) {
+                $message .= ' Stripe authorization amount was updated to match the new price.';
+                if (! empty($stripeSyncResult['error'])) {
+                    $message .= ' Warning: ' . $stripeSyncResult['error'];
+                }
+            } elseif ($stripeSyncResult && ! empty($stripeSyncResult['error'])) {
+                $message .= ' Booking price saved, but Stripe could not be updated: ' . $stripeSyncResult['error'];
+            } elseif (strtolower((string) $booking->payment_status) === 'paid') {
+                $message .= ' This booking is already paid; process a refund or additional charge in Stripe if the captured amount must change.';
+            }
         }
 
         return redirect()
@@ -1117,6 +1136,196 @@ class ReservationController extends Controller
         }
 
         return \Stripe\Customer::create($params);
+    }
+
+    /**
+     * @return array{success: bool, updated: int, message: ?string, error: ?string}
+     */
+    private function syncStripeAuthorizedAmount(Booking $booking, float $newTotalPrice, float $originalTotalPrice): array
+    {
+        if (round($originalTotalPrice, 2) === round($newTotalPrice, 2)) {
+            return ['success' => true, 'updated' => 0, 'message' => null, 'error' => null];
+        }
+
+        $stripeSecret = config('services.stripe.secret');
+        if (! $stripeSecret) {
+            return [
+                'success' => false,
+                'updated' => 0,
+                'message' => null,
+                'error' => 'Stripe is not configured.',
+            ];
+        }
+
+        $authorizedPayments = $booking->payments
+            ->filter(function (Payment $payment) {
+                return $payment->payment_status === 'Authorized'
+                    && filled($payment->transaction_id)
+                    && str_starts_with((string) $payment->transaction_id, 'pi_');
+            });
+
+        if ($authorizedPayments->isEmpty()) {
+            return ['success' => true, 'updated' => 0, 'message' => null, 'error' => null];
+        }
+
+        \Stripe\Stripe::setApiKey($stripeSecret);
+        $amountInCents = (int) round($newTotalPrice * 100);
+        $updated = 0;
+        $errors = [];
+
+        foreach ($authorizedPayments as $payment) {
+            try {
+                $intent = \Stripe\PaymentIntent::retrieve((string) $payment->transaction_id);
+
+                if ($intent->status !== 'requires_capture') {
+                    $errors[] = 'Stripe payment is ' . $intent->status . ' and its amount was not changed.';
+
+                    continue;
+                }
+
+                if ((int) $intent->amount === $amountInCents) {
+                    $updated++;
+
+                    continue;
+                }
+
+                $adjustedIntent = $this->adjustRequiresCapturePaymentIntentAmount(
+                    $intent,
+                    $booking,
+                    $payment,
+                    $amountInCents
+                );
+
+                if ($adjustedIntent->status !== 'requires_capture') {
+                    $errors[] = 'Stripe authorization ended in status ' . $adjustedIntent->status . '.';
+
+                    continue;
+                }
+
+                if ((int) $adjustedIntent->amount !== $amountInCents) {
+                    $errors[] = 'Stripe authorization amount is $' . number_format(((int) $adjustedIntent->amount) / 100, 2) . ' instead of the requested $' . number_format($newTotalPrice, 2) . '.';
+
+                    continue;
+                }
+
+                $updated++;
+            } catch (\Stripe\Exception\ApiErrorException $e) {
+                $errors[] = $e->getMessage();
+            } catch (\Throwable $e) {
+                report($e);
+                $errors[] = $e->getMessage();
+            }
+        }
+
+        return [
+            'success' => $updated > 0 || empty($errors),
+            'updated' => $updated,
+            'message' => $updated > 0 ? 'Stripe authorization amount was updated.' : null,
+            'error' => empty($errors) ? null : implode(' ', $errors),
+        ];
+    }
+
+    private function adjustRequiresCapturePaymentIntentAmount(
+        \Stripe\PaymentIntent $intent,
+        Booking $booking,
+        Payment $payment,
+        int $amountInCents
+    ): \Stripe\PaymentIntent {
+        $currentAmount = (int) $intent->amount;
+
+        if ($currentAmount === $amountInCents) {
+            return $intent;
+        }
+
+        if ($amountInCents > $currentAmount) {
+            try {
+                $intent->incrementAuthorization(['amount' => $amountInCents]);
+
+                return $intent;
+            } catch (\Stripe\Exception\ApiErrorException $e) {
+                return $this->replaceUncapturedStripeAuthorization($intent, $booking, $payment, $amountInCents);
+            }
+        }
+
+        try {
+            return $this->decrementStripeAuthorization($intent, $amountInCents);
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            return $this->replaceUncapturedStripeAuthorization($intent, $booking, $payment, $amountInCents);
+        }
+    }
+
+    private function decrementStripeAuthorization(\Stripe\PaymentIntent $intent, int $amountInCents): \Stripe\PaymentIntent
+    {
+        $requestor = new \Stripe\ApiRequestor(\Stripe\Stripe::getApiKey());
+        [$response, $apiKey] = $requestor->request(
+            'post',
+            '/v1/payment_intents/' . $intent->id . '/decrement_authorization',
+            ['amount' => $amountInCents],
+            []
+        );
+        $opts = \Stripe\Util\RequestOptions::parse(['api_key' => $apiKey]);
+
+        return \Stripe\Util\Util::convertToStripeObject($response->json, $opts);
+    }
+
+    private function replaceUncapturedStripeAuthorization(
+        \Stripe\PaymentIntent $intent,
+        Booking $booking,
+        Payment $payment,
+        int $amountInCents
+    ): \Stripe\PaymentIntent {
+        $customerId = $this->stripeResourceId($intent->customer) ?? $booking->stripe_customer_id;
+        $paymentMethodId = $this->stripeResourceId($intent->payment_method) ?? $booking->stripe_payment_method_id;
+
+        if (! $customerId || ! $paymentMethodId) {
+            throw new \RuntimeException('Saved Stripe customer or card is missing, so the authorization could not be re-created.');
+        }
+
+        if ($intent->status === 'requires_capture') {
+            $intent->cancel(['cancellation_reason' => 'requested_by_customer']);
+        }
+
+        $newIntent = \Stripe\PaymentIntent::create([
+            'amount' => $amountInCents,
+            'currency' => $intent->currency ?? 'usd',
+            'customer' => $customerId,
+            'payment_method' => $paymentMethodId,
+            'capture_method' => 'manual',
+            'off_session' => true,
+            'confirm' => true,
+        ]);
+
+        if (in_array($newIntent->status, ['requires_action', 'requires_source_action'], true)) {
+            throw new \RuntimeException('The card requires additional authentication, so the new authorization could not be completed automatically.');
+        }
+
+        if (! in_array($newIntent->status, ['requires_capture', 'succeeded', 'processing'], true)) {
+            throw new \RuntimeException('Re-authorization failed with status: ' . $newIntent->status);
+        }
+
+        $payment->update([
+            'transaction_id' => $newIntent->id,
+            'amount' => round($amountInCents / 100, 2),
+        ]);
+
+        $booking->stripe_customer_id = $customerId;
+        $booking->stripe_payment_method_id = $paymentMethodId;
+        $booking->save();
+
+        return $newIntent;
+    }
+
+    private function stripeResourceId(mixed $value): ?string
+    {
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+
+        if (is_object($value) && isset($value->id) && is_string($value->id) && $value->id !== '') {
+            return $value->id;
+        }
+
+        return null;
     }
 
     private function storePendingPaymentIntent(Booking $booking, string $transactionId, float $amount): Payment

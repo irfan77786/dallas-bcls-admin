@@ -356,7 +356,7 @@
     $bookingPaymentStatus = strtolower(trim((string) ($bookingPaymentStatus ?? '')));
     $paymentLockedStatuses = ['paid', 'authorized'];
     $hasLockedPayment = in_array($bookingPaymentStatus, $paymentLockedStatuses, true);
-    $showPaymentSection = ! ($isEditMode && $hasLockedPayment);
+    $showPaymentSection = true;
     $canChargeOnEdit = $isEditMode && ! $hasLockedPayment;
 @endphp
 
@@ -817,8 +817,28 @@
                         <div class="form-row">
                             <div class="form-group col-md-6">
                                 <label for="custom_total_price">Custom payment amount</label>
-                                <input type="number" class="form-control" id="custom_total_price" name="custom_total_price" min="0.01" step="0.01" value="{{ $formValue('custom_total_price') }}" placeholder="Optional custom amount">
-                                <small class="form-text text-muted">Leave blank to keep the system-calculated total based on the selected vehicle.</small>
+                                <input
+                                    type="number"
+                                    class="form-control"
+                                    id="custom_total_price"
+                                    name="custom_total_price"
+                                    min="0.01"
+                                    step="0.01"
+                                    value="{{ $formValue('custom_total_price') }}"
+                                    placeholder="Optional custom amount"
+                                >
+                                @if($hasLockedPayment && $isEditMode)
+                                    <small class="form-text text-muted">
+                                        Payment status is <strong>{{ ucfirst($bookingPaymentStatus) }}</strong>.
+                                        @if(strtolower((string) $bookingPaymentStatus) === 'authorized')
+                                            You can correct the price here; the Stripe authorization will update automatically when you save.
+                                        @else
+                                            You can correct the booking price here. Already-captured payments must be adjusted manually in Stripe.
+                                        @endif
+                                    </small>
+                                @else
+                                    <small class="form-text text-muted">Leave blank to keep the system-calculated total based on the selected vehicle.</small>
+                                @endif
                             </div>
                             <div class="form-group col-md-6">
                                 <div class="summary-box">
@@ -858,7 +878,11 @@
                                 </div>
                             @else
                                 <div class="alert alert-info small">
-                                    This reservation already has a paid or authorized payment. No new card charge can be created from this screen.
+                                    @if(strtolower((string) ($bookingPaymentStatus ?? '')) === 'authorized')
+                                        This reservation is authorized. You can update the booking price and the Stripe hold will be adjusted automatically.
+                                    @else
+                                        This reservation is already paid. You can update the booking price here, but captured charges must be adjusted manually in Stripe.
+                                    @endif
                                 </div>
                             @endif
                             <div class="d-flex flex-wrap align-items-center" style="gap: 0.5rem;">
@@ -908,12 +932,6 @@
                                 </button>
                             </div>
                         @endif
-                    </div>
-                @elseif($isEditMode)
-                    <div class="mt-4 d-flex flex-wrap align-items-center" style="gap: 0.5rem;">
-                        <button type="submit" class="btn btn-success btn-lg" id="btn-reservation-update">
-                            <i class="ik ik-save"></i> Update reservation
-                        </button>
                     </div>
                 @endif
             </form>
