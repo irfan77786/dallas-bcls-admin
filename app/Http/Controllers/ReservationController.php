@@ -895,8 +895,13 @@ class ReservationController extends Controller
         }
 
         $message = 'Reservation #' . $booking->booking_id . ' updated successfully.';
-        if ($hadLockedPayment && round($originalTotalPrice, 2) !== round($totalPrice, 2)) {
-            $message .= ' Existing paid/authorized payment records were not changed.';
+        if (
+            strtolower((string) $booking->payment_status) === 'authorized'
+            && round($originalTotalPrice, 2) !== round($totalPrice, 2)
+        ) {
+            $message .= ' Booking price was updated in the system only. Stripe authorization was not changed.';
+        } elseif ($hadLockedPayment && round($originalTotalPrice, 2) !== round($totalPrice, 2)) {
+            $message .= ' Existing paid payment records were not changed.';
         }
 
         return redirect()
