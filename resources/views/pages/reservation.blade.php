@@ -512,9 +512,9 @@
                                                 <span class="rlx-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
                                                 <span class="rlx-option-text">Select Airline</span>
                                             </li>
-                                            @foreach($airports ?? [] as $airport)
+                                            @foreach($airlines ?? [] as $airline)
                                                 @php
-                                                    $displayValue = ($airport->iata_code ? $airport->iata_code . ' - ' : '') . $airport->name . ($airport->city ? ' (' . $airport->city . ')' : '');
+                                                    $displayValue = ($airline->iata_code ? $airline->iata_code . ' - ' : '') . $airline->name . ($airline->city ? ' (' . $airline->city . ')' : '');
                                                 @endphp
                                                 <li role="option"
                                                     class="rlx-option {{ $pickupFlightOld === $displayValue ? 'selected' : '' }}"

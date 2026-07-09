@@ -48,6 +48,14 @@
                     </a>
                 </div>
 
+                <!-- Limo Anywhere style reservation form -->
+                <div class="nav-item {{ $segment1 === 'reservation-la' ? 'active' : '' }}">
+                    <a href="{{ route('reservation.la') }}">
+                        <i class="ik ik-file-text"></i>
+                        <span>{{ __('Add Reservation (LA)') }}</span>
+                    </a>
+                </div>
+
                 <!-- Manage Drivers -->
                 <!--<div class="nav-item {{ ($segment1 == 'manage-drivers') ? 'active' : '' }}">-->
                 <!--    <a href="#">-->

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\CreateBookingDocs;
 use App\Services\BookingEmailPayloadBuilder;
 use App\Models\Airport;
+use App\Models\Airline;
 use App\Models\Account;
 use App\Models\Booker;
 use App\Models\Booking;
@@ -41,6 +42,13 @@ class ReservationController extends Controller
         return $this->reservationView('pages.reservation-v2');
     }
 
+    public function createLa()
+    {
+        return $this->reservationView('pages.reservation-la', 'Add Reservation', [
+            'nextConfirmationNumber' => $this->nextPublicBookingId(),
+        ]);
+    }
+
     public function edit(Booking $booking)
     {
         $booking->load([
@@ -69,8 +77,13 @@ class ReservationController extends Controller
         $googleMapsApiKey = config('services.google_maps.api_key');
         $stripePublishableKey = config('services.stripe.key');
         $stripeEnabled = (bool) (config('services.stripe.secret') && $stripePublishableKey);
+        $airlines = Schema::hasTable('airlines')
+            ? Airline::query()->orderBy('name')->get()
+            : (Schema::hasTable('airports')
+                ? Airport::query()->orderBy('name')->get()
+                : collect());
         $airports = Schema::hasTable('airports')
-            ? Airport::query()->orderBy('id')->get()
+            ? Airport::query()->orderBy('iata_code')->get()
             : collect();
         $accounts = Account::query()
             ->with('billingContact')
@@ -79,7 +92,7 @@ class ReservationController extends Controller
         $childSeatPricePerSeatUsd = self::CHILD_SEAT_PRICE_PER_SEAT_USD;
 
         return view($view, array_merge(
-            compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airports', 'accounts', 'childSeatPricePerSeatUsd', 'pageTitle'),
+            compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airlines', 'airports', 'accounts', 'childSeatPricePerSeatUsd', 'pageTitle'),
             $extraData
         ));
     }
@@ -1056,6 +1069,10 @@ class ReservationController extends Controller
             }
         }
 
+        if ($request->input('payment_method_id') === '') {
+            $request->merge(['payment_method_id' => null]);
+        }
+
         $request->merge([
             'stop_locations' => $this->cleanStopLocations($request->input('stop_locations', [])),
         ]);
@@ -1195,6 +1212,8 @@ class ReservationController extends Controller
 
         if ($requirePaymentMethod) {
             $rules['payment_method_id'] = ['required', 'string'];
+        } else {
+            $rules['payment_method_id'] = ['nullable', 'string'];
         }
 
         return $rules;

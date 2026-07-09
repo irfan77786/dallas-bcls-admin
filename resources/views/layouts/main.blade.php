@@ -7,13 +7,10 @@
 
 </head>
 <body id="app" >
-    <div class="wrapper">
+    <div class="wrapper layout-topnav">
     	<!-- initiate header-->
     	@include('include.header')
     	<div class="page-wrap">
-	    	<!-- initiate sidebar-->
-	    	@include('include.sidebar')
-
 	    	<div class="main-content">
 	    		<!-- yeild contents here -->
 	    		@yield('content')

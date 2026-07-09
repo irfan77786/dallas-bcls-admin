@@ -20,6 +20,7 @@
 /storage/*.key
 /storage/pail
 /vendor
+/database/data/airports.csv
 Homestead.json
 Homestead.yaml
 Thumbs.db

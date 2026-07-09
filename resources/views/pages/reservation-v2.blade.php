@@ -759,10 +759,10 @@ $canChargeOnEdit = $isEditMode && ! $hasLockedPayment;
                                                     <div class="compact-select-option-main">Select airline</div>
                                                 </div>
                                             </li>
-                                            @foreach($airports ?? [] as $airport)
+                                            @foreach($airlines ?? [] as $airline)
                                             @php
-                                            $displayValue = ($airport->iata_code ? $airport->iata_code . ' - ' : '') .
-                                            $airport->name . ($airport->city ? ' (' . $airport->city . ')' : '');
+                                            $displayValue = ($airline->iata_code ? $airline->iata_code . ' - ' : '') .
+                                            $airline->name . ($airline->city ? ' (' . $airline->city . ')' : '');
                                             @endphp
                                             <li class="compact-select-option {{ $pickupFlightOld === $displayValue ? 'selected' : '' }}"
                                                 data-value="{{ $displayValue }}" data-label="{{ $displayValue }}"
