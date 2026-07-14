@@ -64,6 +64,7 @@ class DashboardController extends Controller
             ]);
 
         $recentBookings = Booking::with(['vehicle', 'booker', 'passengers'])
+            ->notDraft()
             ->latest()
             ->take(10)
             ->get();
@@ -144,7 +145,7 @@ class DashboardController extends Controller
     
     
     public function booking(){
-          $bookings = Booking::with(['vehicle'])->get();
+          $bookings = Booking::with(['vehicle'])->notDraft()->get();
         //   dd($bookings);
          return view('pages.booking',compact('bookings'));
     }

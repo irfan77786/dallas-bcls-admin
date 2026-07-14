@@ -11,7 +11,9 @@ class Booking extends Model
 
     protected $casts = [
         'from_admin_reservation' => 'boolean',
+        'is_draft' => 'boolean',
         'stop_locations' => 'array',
+        'routing_information' => 'array',
     ];
 
     protected $fillable = [
@@ -22,11 +24,14 @@ class Booking extends Model
         'pickup_location',
         'dropoff_location',
         'stop_locations',
+        'routing_information',
         'pickup_date',
         'pickup_time',
         'total_price',
         'buffer_amount',
         'payment_status',
+        'is_draft',
+        'draft_user_id',
         'return_service_id',
         'note',
         'child_seat_type',
@@ -39,6 +44,19 @@ class Booking extends Model
         'stripe_customer_id',
         'stripe_payment_method_id',
     ];
+
+    public function scopeNotDraft($query)
+    {
+        if (\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'is_draft')) {
+            return $query->where(function ($q) {
+                $q->where('is_draft', false)->orWhereNull('is_draft');
+            });
+        }
+
+        return $query->where(function ($q) {
+            $q->where('payment_status', '!=', 'Draft')->orWhereNull('payment_status');
+        });
+    }
 
     public function user() {
         return $this->belongsTo(User::class);

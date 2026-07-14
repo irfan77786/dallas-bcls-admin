@@ -14,7 +14,7 @@
             <label>Phone Number</label>
             <div class="la-phone-wrap">
                 <div class="la-phone-input-wrap">
-                    <input type="tel" class="la-intl-phone" tabindex="-1" autocomplete="off" placeholder="Enter number">
+                    <input type="tel" class="la-intl-phone" id="la-airport-phone" tabindex="-1" autocomplete="off" placeholder="Enter number">
                     <i class="bi bi-telephone la-phone-ico"></i>
                 </div>
             </div>
@@ -23,12 +23,12 @@
     <div class="la-routing-notes-row la-routing-notes-airport">
         <div class="la-field">
             <label>Notes</label>
-            <textarea tabindex="-1" style="min-height:70px;background:#fffde7;border:1px solid #999;width:100%;font-size:11px;"></textarea>
+            <textarea id="la-airport-notes" tabindex="-1" style="min-height:70px;background:#fffde7;border:1px solid #999;width:100%;font-size:11px;"></textarea>
         </div>
         <div class="la-routing-side">
             <div class="la-field">
                 <label class="la-lbl-red">Time In</label>
-                <input type="time" tabindex="-1">
+                <input type="time" id="la-airport-time-in" tabindex="-1">
             </div>
         </div>
     </div>
@@ -36,21 +36,21 @@
     <div class="la-routing-notes-row">
         <div class="la-field">
             <label>Notes</label>
-            <textarea tabindex="-1" style="min-height:70px;background:#fffde7;border:1px solid #999;width:100%;font-size:11px;"></textarea>
+            <textarea id="la-addr-notes" tabindex="-1" style="min-height:70px;background:#fffde7;border:1px solid #999;width:100%;font-size:11px;"></textarea>
         </div>
         <div class="la-routing-side">
             <div class="la-field">
                 <label>Phone Number</label>
                 <div class="la-phone-wrap">
                     <div class="la-phone-input-wrap">
-                        <input type="tel" class="la-intl-phone" tabindex="-1" autocomplete="off" placeholder="Enter number">
+                        <input type="tel" class="la-intl-phone" id="la-addr-phone" tabindex="-1" autocomplete="off" placeholder="Enter number">
                         <i class="bi bi-telephone la-phone-ico"></i>
                     </div>
                 </div>
             </div>
             <div class="la-field">
                 <label class="la-lbl-red">Time In</label>
-                <input type="time" tabindex="-1">
+                <input type="time" id="la-addr-time-in" tabindex="-1">
             </div>
         </div>
     </div>

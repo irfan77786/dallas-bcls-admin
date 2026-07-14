@@ -152,19 +152,24 @@
         </div>
         <div class="la-field" style="grid-column: span 3;">
             <label>Arr/Dep AP</label>
-            <input type="text" tabindex="-1">
+            <input type="text" id="la-airport-arr-dep" tabindex="-1" autocomplete="off">
         </div>
         <div class="la-field" style="grid-column: span 3;">
             <label>Terminal/Gate</label>
-            <input type="text" tabindex="-1">
+            <input type="text" id="la-airport-terminal" tabindex="-1" autocomplete="off">
         </div>
         <div class="la-field" style="grid-column: span 4;">
             <label>Airport Instructions</label>
-            <select tabindex="-1"><option></option></select>
+            <select id="la-airport-instructions" tabindex="-1">
+                <option value=""></option>
+                <option value="Arrive">Arrive</option>
+                <option value="Depart">Depart</option>
+                <option value="Meet and Greet">Meet and Greet</option>
+            </select>
         </div>
         <div class="la-field" style="grid-column: span 2;">
             <label>ETA/ETD</label>
-            <input type="text" tabindex="-1">
+            <input type="text" id="la-airport-eta-etd" tabindex="-1" autocomplete="off">
         </div>
     </div>
     @include('pages.partials.reservation-la-routing-notes', ['notesLayout' => 'airport', 'meetOld' => $meetOld])

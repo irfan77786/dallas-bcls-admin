@@ -36,6 +36,7 @@ class BookingController extends Controller
         }
 
         $query = Booking::query()
+            ->notDraft()
             ->with(['vehicle', 'passengers'])
             ->latest();
 

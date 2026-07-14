@@ -321,10 +321,21 @@
     .la-routing-stored-list { border: 1px solid #ccc; border-top: none; background: #fafafa; }
     .la-routing-stored-list .la-routing-footer-empty { border: none; }
     .la-routing-stored-row {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
         padding: 3px 6px; font-size: 10px; font-weight: 600;
-        background: #d6e8ff; border-bottom: 1px solid #b8d4f0;
+        background: #fff8c6; border-bottom: 1px solid #e0d48a;
     }
     .la-routing-stored-row:last-child { border-bottom: none; }
+    .la-routing-stored-row[data-source="address"] { background: #d6e8ff; border-bottom-color: #b8d4f0; }
+    .la-routing-stored-main { flex: 1; min-width: 0; }
+    .la-routing-not-verified { color: #c00; font-weight: 700; margin-left: 4px; }
+    .la-routing-stored-actions { display: inline-flex; gap: 8px; flex-shrink: 0; }
+    .la-routing-edit {
+        color: #222; text-decoration: underline; cursor: pointer; font-weight: 600; background: none; border: none; padding: 0; font-size: 10px;
+    }
+    .la-routing-delete {
+        color: #c00; text-decoration: underline; cursor: pointer; font-weight: 700; background: none; border: none; padding: 0; font-size: 10px;
+    }
     .la-routing-addr-pane.d-none { display: none !important; }
     .la-mid-notes-block {
         border: 1px solid #bbb; margin-bottom: 4px; background: #fff;
@@ -347,7 +358,11 @@
     .la-mid-notes-foot label { margin: 0; font-size: 10px; color: #c00; font-weight: 600; }
     .la-btn-save-notes {
         height: 20px; padding: 0 10px; border: 1px solid #888;
-        background: #e8e8e8; font-size: 10px; font-weight: 700; cursor: default;
+        background: #e8e8e8; font-size: 10px; font-weight: 700; cursor: pointer;
+    }
+    .la-btn-save-notes:hover { background: #f4f4f4; }
+    .la-btn-save-notes.saved {
+        background: #d4edda; border-color: #7bb98a; color: #155724;
     }
     .la-routing-addr-pane.d-none { display: none !important; }
 
@@ -711,8 +726,10 @@
 
 @section('content')
 @php
-    $formValue = fn ($key, $default = null) => old($key, $default);
-    $formBool = fn ($key, $default = false) => in_array(old($key, $default), [true, 1, '1', 'true', 'on', 'yes'], true);
+    $formDefaults = $formDefaults ?? [];
+    $formValue = fn ($key, $default = null) => old($key, $formDefaults[$key] ?? $default);
+    $formBool = fn ($key, $default = false) => in_array(old($key, $formDefaults[$key] ?? $default), [true, 1, '1', 'true', 'on', 'yes'], true);
+    $draftBookingId = isset($draftBooking) && $draftBooking ? $draftBooking->id : null;
     $pickupFlightOld = $formValue('pickup_flight_details');
     $meetOld = $formValue('meet_option');
     $serviceOptionOld = $formValue('service_option', 'point_to_point');
@@ -757,10 +774,15 @@
         <input type="hidden" name="child_seat_required" id="child_seat_required" value="{{ $formBool('child_seat_required') ? '1' : '0' }}">
         <input type="hidden" name="child_seat_type" id="child_seat_type" value="{{ $formValue('child_seat_type') }}">
         <input type="hidden" name="child_seat_quantity" id="child_seat_quantity" value="{{ $formValue('child_seat_quantity') }}">
+        <input type="hidden" name="draft_booking_id" id="draft_booking_id" value="{{ $draftBookingId }}">
 
         <div class="la-topbar">
             <div class="la-warning-banner" style="flex:1;">
-                ATTENTION! This reservation was created but has not been saved. You must save it before leaving this screen.
+                @if(!empty($draftBookingId))
+                    Draft booking #{{ $nextConfirmationNumber ?? $draftBookingId }} is open. Notes, routing, and airport details auto-save to this booking. Complete and save to finalize.
+                @else
+                    ATTENTION! This reservation was created but has not been saved. You must save it before leaving this screen.
+                @endif
             </div>
         </div>
 
@@ -1109,50 +1131,52 @@
                     <div id="la-stop-locations-hidden" class="la-hidden-functional"></div>
                     <input type="hidden" name="pickup_location" id="pickup_location" value="{{ $formValue('pickup_location') }}" required>
                     <input type="hidden" name="dropoff_location" id="dropoff_location" value="{{ $formValue('dropoff_location') }}">
+                    <input type="hidden" name="routing_information" id="routing_information" value="{{ e(json_encode($routingDraft ?? [])) }}">
                 </div>
 
                 {{-- Trip Notes --}}
-                <div class="la-mid-notes-block">
+                <div class="la-mid-notes-block" data-notes-block="trip">
                     <div class="la-mid-notes-head">
                         <span>Trip Notes</span>
                         <span class="la-mid-notes-limit">4000</span>
                     </div>
-                    <textarea name="note" id="note" placeholder="">{{ $formValue('note') }}</textarea>
+                    <textarea id="la-trip-notes" maxlength="4000" placeholder="">{{ $formValue('note') }}</textarea>
+                    <input type="hidden" name="note" id="note" value="{{ $formValue('note') }}">
                     <div class="la-mid-notes-foot">
                         <div class="la-mid-notes-foot-left">
-                            <label><input type="checkbox" tabindex="-1"> Add to T/S</label>
-                            <label><input type="checkbox" tabindex="-1"> Hide From Customer</label>
+                            <label><input type="checkbox" id="la-note-add-ts" tabindex="-1"> Add to T/S</label>
+                            <label><input type="checkbox" id="la-note-hide-customer" tabindex="-1"> Hide From Customer</label>
                         </div>
-                        <button type="button" class="la-btn-save-notes" tabindex="-1">SAVE NOTES</button>
+                        <button type="button" class="la-btn-save-notes" id="la-btn-save-trip-notes">SAVE NOTES</button>
                     </div>
                 </div>
 
                 {{-- Dispatch Notes --}}
-                <div class="la-mid-notes-block">
+                <div class="la-mid-notes-block" data-notes-block="dispatch">
                     <div class="la-mid-notes-head">
                         <span>Dispatch Notes</span>
                         <span class="la-mid-notes-limit">1000</span>
                     </div>
-                    <textarea tabindex="-1"></textarea>
+                    <textarea id="la-dispatch-notes" maxlength="1000"></textarea>
                     <div class="la-mid-notes-foot">
                         <span></span>
-                        <button type="button" class="la-btn-save-notes" tabindex="-1">SAVE NOTES</button>
+                        <button type="button" class="la-btn-save-notes" id="la-btn-save-dispatch-notes">SAVE NOTES</button>
                     </div>
                 </div>
 
                 {{-- Partner Notes --}}
-                <div class="la-mid-notes-block">
+                <div class="la-mid-notes-block" data-notes-block="partner">
                     <div class="la-mid-notes-head">
                         <span>Partner Notes</span>
                         <span class="la-mid-notes-limit">1000</span>
                     </div>
-                    <textarea tabindex="-1"></textarea>
+                    <textarea id="la-partner-notes" maxlength="1000"></textarea>
                 </div>
 
                 {{-- Bill To & Pax Notes --}}
-                <div class="la-mid-notes-block">
+                <div class="la-mid-notes-block" data-notes-block="billto">
                     <div class="la-mid-notes-head"><span>Bill To &amp; Pax Notes</span></div>
-                    <textarea tabindex="-1"></textarea>
+                    <textarea id="la-billto-notes" maxlength="1000"></textarea>
                 </div>
 
                 <div class="la-field la-hidden-functional" id="wrap-hours">
@@ -1419,6 +1443,12 @@ window.initReservationPlaces = function () {
     var token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var reservationStripeEnabled = @json(!empty($stripeEnabled));
     var storeUrl = @json(route('reservation.store'));
+    var routingDraftUrl = @json(route('reservation.routing-draft'));
+    var laDraftSaveUrl = @json(route('reservation.la-draft'));
+    var laDraftBookingId = @json($draftBookingId);
+    var laRoutingDraft = @json($routingDraft ?? []);
+    var laRoutingDraftTimer = null;
+    var laNotesDraftTimer = null;
     var finalizeUrl = @json(route('reservation.finalize'));
     var laAirlines = @json($laAirlinesJson);
     var laAirports = @json($laAirportsJson);
@@ -1678,23 +1708,82 @@ window.initReservationPlaces = function () {
 
     var LA_ROUTING_PREFIX = { pickup: 'PU', dropoff: 'DO', stop: 'ST', wait: 'WAIT' };
 
+    function getActiveAddrPanel() {
+        var panel = document.querySelector('.la-addr-type-panel.active');
+        return panel ? (panel.getAttribute('data-addr-panel') || 'address') : 'address';
+    }
+
+    function switchAddrTab(key) {
+        var tabs = document.querySelectorAll('.la-addr-tab[data-addr-tab]');
+        var panels = document.querySelectorAll('.la-addr-type-panel');
+        tabs.forEach(function (t) {
+            t.classList.toggle('active', t.getAttribute('data-addr-tab') === key);
+        });
+        panels.forEach(function (p) {
+            p.classList.toggle('active', p.getAttribute('data-addr-panel') === key);
+        });
+        syncRoutingPanes();
+    }
+
     function getLaAddressFormData() {
         var val = function (id) {
             var el = document.getElementById(id);
             return el ? (el.value || '').trim() : '';
         };
         return {
+            source: 'address',
             locationName: val('la-addr-location-name'),
             street1: val('la-addr-street1'),
             street2: val('la-addr-street2'),
             city: val('la-addr-city'),
             state: val('la-addr-state'),
             zip: val('la-addr-zip'),
-            country: val('la-addr-country') || 'United States'
+            country: val('la-addr-country') || 'United States',
+            notes: val('la-addr-notes'),
+            phone: val('la-addr-phone'),
+            timeIn: val('la-addr-time-in')
+        };
+    }
+
+    function getLaAirportFormData() {
+        var val = function (id) {
+            var el = document.getElementById(id);
+            return el ? (el.value || '').trim() : '';
+        };
+        var storedAirport = document.getElementById('la-stored-airport');
+        var storedAirline = document.getElementById('la-stored-airline');
+        return {
+            source: 'airport',
+            pickupDate: val('pickup_date'),
+            pickupTime: val('pickup_time'),
+            airportCode: val('la-airport-code').toUpperCase(),
+            airportName: val('la-airport-name'),
+            airlineCode: val('la-airline-code').toUpperCase(),
+            airlineName: val('la-airline-name'),
+            flightNumber: val('flight_number'),
+            arrDep: val('la-airport-arr-dep'),
+            terminal: val('la-airport-terminal'),
+            instructions: val('la-airport-instructions'),
+            etaEtd: val('la-airport-eta-etd'),
+            meetOption: val('meet-option'),
+            phone: val('la-airport-phone'),
+            notes: val('la-airport-notes'),
+            timeIn: val('la-airport-time-in'),
+            storedAirportId: storedAirport ? storedAirport.value : '',
+            storedAirlineId: storedAirline ? storedAirline.value : ''
         };
     }
 
     function buildLaRoutingLabel(data) {
+        if (data.source === 'airport') {
+            var bits = [];
+            if (data.airportCode) bits.push(data.airportCode);
+            else if (data.airportName) bits.push(data.airportName);
+            if (data.airlineCode) bits.push(data.airlineCode);
+            else if (data.airlineName) bits.push(data.airlineName);
+            if (data.flightNumber) bits.push(data.flightNumber);
+            return bits.join(' ').trim() || data.airportName || 'Airport';
+        }
         var bits = [];
         var head = data.locationName || data.street1;
         if (head) bits.push(head);
@@ -1706,6 +1795,19 @@ window.initReservationPlaces = function () {
     }
 
     function buildLaRoutingSubmitValue(data) {
+        if (data.source === 'airport') {
+            var parts = [];
+            if (data.airportCode && data.airportName) parts.push(data.airportCode + ' - ' + data.airportName);
+            else if (data.airportName) parts.push(data.airportName);
+            else if (data.airportCode) parts.push(data.airportCode);
+            if (data.airlineCode || data.airlineName) {
+                parts.push([data.airlineCode, data.airlineName].filter(Boolean).join(' - '));
+            }
+            if (data.flightNumber) parts.push('Flight ' + data.flightNumber);
+            if (data.terminal) parts.push('Terminal/Gate ' + data.terminal);
+            if (data.arrDep) parts.push(data.arrDep);
+            return parts.join(', ').trim() || buildLaRoutingLabel(data);
+        }
         var parts = [];
         if (data.locationName) parts.push(data.locationName);
         if (data.street1) parts.push(data.street1);
@@ -1721,11 +1823,21 @@ window.initReservationPlaces = function () {
         if (empty) empty.style.display = 'none';
     }
 
-    function appendLaStoredRoutingRow(type, label, submitValue) {
+    function showLaStoredRoutingEmptyIfNeeded() {
+        var list = document.getElementById('la-stored-routing-list');
+        var empty = document.getElementById('la-stored-routing-empty');
+        if (!list || !empty) return;
+        var hasRows = !!list.querySelector('.la-routing-stored-row');
+        empty.style.display = hasRows ? 'none' : '';
+    }
+
+    function appendLaStoredRoutingRow(type, label, submitValue, payload, options) {
         var list = document.getElementById('la-stored-routing-list');
         if (!list) return null;
         hideLaStoredRoutingEmpty();
+        options = options || {};
 
+        payload = payload || { source: 'address' };
         if (type === 'pickup' || type === 'dropoff') {
             var existing = list.querySelector('.la-routing-stored-row[data-routing-type="' + type + '"]');
             if (existing) existing.remove();
@@ -1736,9 +1848,123 @@ window.initReservationPlaces = function () {
         row.className = 'la-routing-stored-row';
         row.setAttribute('data-routing-type', type);
         row.setAttribute('data-submit-value', submitValue);
-        row.textContent = prefix + ': ' + label;
+        row.setAttribute('data-source', payload.source || 'address');
+        row.setAttribute('data-label', label);
+        row.setAttribute('data-payload', JSON.stringify(payload));
+
+        var main = document.createElement('span');
+        main.className = 'la-routing-stored-main';
+        main.appendChild(document.createTextNode(prefix + ': ' + label + ' '));
+        if (payload.source === 'airport') {
+            var unverified = document.createElement('span');
+            unverified.className = 'la-routing-not-verified';
+            unverified.textContent = 'Not verified';
+            main.appendChild(unverified);
+        }
+        row.appendChild(main);
+
+        var actions = document.createElement('span');
+        actions.className = 'la-routing-stored-actions';
+        var editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'la-routing-edit';
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', function () {
+            editLaStoredRoutingRow(row);
+        });
+        var delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'la-routing-delete';
+        delBtn.textContent = 'Delete';
+        delBtn.addEventListener('click', function () {
+            deleteLaStoredRoutingRow(row);
+        });
+        actions.appendChild(editBtn);
+        actions.appendChild(delBtn);
+        row.appendChild(actions);
+
         list.appendChild(row);
+        if (!options.skipPersist) syncLaRoutingPersistence();
         return row;
+    }
+
+    function collectLaStoredRoutingRows() {
+        var list = document.getElementById('la-stored-routing-list');
+        if (!list) return [];
+        var rows = [];
+        list.querySelectorAll('.la-routing-stored-row').forEach(function (row) {
+            var payload = {};
+            try { payload = JSON.parse(row.getAttribute('data-payload') || '{}'); } catch (e) { payload = {}; }
+            rows.push({
+                type: row.getAttribute('data-routing-type') || 'pickup',
+                label: row.getAttribute('data-label') || (row.querySelector('.la-routing-stored-main') || row).textContent
+                    .replace(/^(PU|DO|ST|WAIT):\s*/i, '')
+                    .replace(/\s*Not verified\s*$/i, '')
+                    .trim(),
+                submit_value: row.getAttribute('data-submit-value') || '',
+                source: row.getAttribute('data-source') || (payload.source || 'address'),
+                payload: payload
+            });
+        });
+        return rows;
+    }
+
+    function syncLaRoutingHiddenInput() {
+        var hidden = document.getElementById('routing_information');
+        if (!hidden) return;
+        hidden.value = JSON.stringify(collectLaStoredRoutingRows());
+    }
+
+    function persistLaRoutingDraft() {
+        syncLaRoutingHiddenInput();
+        if (!routingDraftUrl) return;
+        clearTimeout(laRoutingDraftTimer);
+        laRoutingDraftTimer = setTimeout(function () {
+            var rows = collectLaStoredRoutingRows();
+            var pu = document.getElementById('pickup_location');
+            var dof = document.getElementById('dropoff_location');
+            fetch(routingDraftUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    draft_booking_id: laDraftBookingId,
+                    routing_information: rows,
+                    pickup_location: pu ? pu.value : '',
+                    dropoff_location: dof ? dof.value : ''
+                })
+            }).catch(function () { /* ignore draft save errors */ });
+        }, 250);
+    }
+
+    function syncLaRoutingPersistence() {
+        syncLaRoutingHiddenInput();
+        persistLaRoutingDraft();
+    }
+
+    function hydrateLaStoredRoutingFromDraft(rows) {
+        var list = document.getElementById('la-stored-routing-list');
+        if (!list || !Array.isArray(rows) || !rows.length) return false;
+
+        list.querySelectorAll('.la-routing-stored-row').forEach(function (row) { row.remove(); });
+        rows.forEach(function (row) {
+            if (!row || !row.type || !row.label) return;
+            appendLaStoredRoutingRow(
+                row.type,
+                row.label,
+                row.submit_value || row.label,
+                row.payload || { source: row.source || 'address' },
+                { skipPersist: true }
+            );
+            syncLaRoutingToFormFields(row.type, row.submit_value || row.label, row.payload || { source: row.source || 'address' });
+        });
+        syncLaRoutingHiddenInput();
+        showLaStoredRoutingEmptyIfNeeded();
+        return true;
     }
 
     function syncLaStopLocationsHidden() {
@@ -1755,10 +1981,17 @@ window.initReservationPlaces = function () {
         });
     }
 
-    function syncLaRoutingToFormFields(type, submitValue) {
+    function syncLaRoutingToFormFields(type, submitValue, payload) {
         if (type === 'pickup') {
             var pu = document.getElementById('pickup_location');
             if (pu) pu.value = submitValue;
+            if (payload && payload.source === 'airport') {
+                var isAirport = document.getElementById('is_airport');
+                if (isAirport) isAirport.value = '1';
+                var nfl = document.getElementById('no_flight_info');
+                if (nfl) nfl.value = '1';
+                syncLaAirportBackendFields(payload);
+            }
         } else if (type === 'dropoff') {
             var dof = document.getElementById('dropoff_location');
             if (dof) dof.value = submitValue;
@@ -1766,9 +1999,31 @@ window.initReservationPlaces = function () {
         syncLaStopLocationsHidden();
     }
 
+    function syncLaAirportBackendFields(data) {
+        if (!data) return;
+        var flightNum = document.getElementById('flight_number');
+        if (flightNum && data.flightNumber !== undefined) flightNum.value = data.flightNumber || '';
+        var meet = document.getElementById('meet-option');
+        if (meet && data.meetOption !== undefined) meet.value = data.meetOption || '';
+        if (typeof syncLaPickupFlightDetails === 'function') syncLaPickupFlightDetails();
+        else {
+            var hidden = document.getElementById('pickup-flight-details');
+            if (hidden) {
+                if (data.airlineCode && data.airlineName) hidden.value = data.airlineCode + ' - ' + data.airlineName;
+                else if (data.airlineName) hidden.value = data.airlineName;
+                else hidden.value = '';
+            }
+        }
+    }
+
     function laAddressFormHasData(data) {
         data = data || getLaAddressFormData();
         return !!(data.street1 || data.locationName || data.city);
+    }
+
+    function laAirportFormHasData(data) {
+        data = data || getLaAirportFormData();
+        return !!(data.airportCode || data.airportName || data.airlineCode || data.airlineName || data.flightNumber);
     }
 
     function hasLaStoredRoutingType(type) {
@@ -1777,7 +2032,7 @@ window.initReservationPlaces = function () {
     }
 
     function clearLaAddressForm() {
-        ['la-addr-location-name', 'la-addr-street1', 'la-addr-street2', 'la-addr-city', 'la-addr-zip'].forEach(function (id) {
+        ['la-addr-location-name', 'la-addr-street1', 'la-addr-street2', 'la-addr-city', 'la-addr-zip', 'la-addr-notes', 'la-addr-phone', 'la-addr-time-in'].forEach(function (id) {
             var el = document.getElementById(id);
             if (el) el.value = '';
         });
@@ -1787,14 +2042,143 @@ window.initReservationPlaces = function () {
         if (country) country.value = 'United States';
     }
 
+    function clearLaAirportForm(keepFlightBackend) {
+        ['la-airport-code', 'la-airport-name', 'la-airline-code', 'la-airline-name',
+            'la-airport-arr-dep', 'la-airport-terminal', 'la-airport-eta-etd',
+            'la-airport-phone', 'la-airport-notes', 'la-airport-time-in'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        var instr = document.getElementById('la-airport-instructions');
+        if (instr) instr.value = '';
+        var storedAirport = document.getElementById('la-stored-airport');
+        if (storedAirport) storedAirport.value = '';
+        var storedAirline = document.getElementById('la-stored-airline');
+        if (storedAirline) storedAirline.value = '';
+        if (!keepFlightBackend) {
+            var flightNum = document.getElementById('flight_number');
+            if (flightNum) flightNum.value = '';
+            var meet = document.getElementById('meet-option');
+            if (meet) meet.value = '';
+            var hidden = document.getElementById('pickup-flight-details');
+            if (hidden) hidden.value = '';
+        }
+    }
+
+    function fillLaAddressForm(data) {
+        if (!data) return;
+        var set = function (id, value) {
+            var el = document.getElementById(id);
+            if (el) el.value = value || '';
+        };
+        set('la-addr-location-name', data.locationName);
+        set('la-addr-street1', data.street1);
+        set('la-addr-street2', data.street2);
+        set('la-addr-city', data.city);
+        set('la-addr-state', data.state);
+        set('la-addr-zip', data.zip);
+        set('la-addr-country', data.country || 'United States');
+        set('la-addr-notes', data.notes);
+        set('la-addr-phone', data.phone);
+        set('la-addr-time-in', data.timeIn);
+    }
+
+    function fillLaAirportForm(data) {
+        if (!data) return;
+        var set = function (id, value) {
+            var el = document.getElementById(id);
+            if (el) el.value = value || '';
+        };
+        set('la-airport-code', data.airportCode);
+        set('la-airport-name', data.airportName);
+        set('la-airline-code', data.airlineCode);
+        set('la-airline-name', data.airlineName);
+        set('flight_number', data.flightNumber);
+        set('la-airport-arr-dep', data.arrDep);
+        set('la-airport-terminal', data.terminal);
+        set('la-airport-instructions', data.instructions);
+        set('la-airport-eta-etd', data.etaEtd);
+        set('meet-option', data.meetOption);
+        set('la-airport-phone', data.phone);
+        set('la-airport-notes', data.notes);
+        set('la-airport-time-in', data.timeIn);
+        if (data.pickupDate) set('pickup_date', data.pickupDate);
+        if (data.pickupTime) set('pickup_time', data.pickupTime);
+        var storedAirport = document.getElementById('la-stored-airport');
+        if (storedAirport && data.storedAirportId) storedAirport.value = data.storedAirportId;
+        var storedAirline = document.getElementById('la-stored-airline');
+        if (storedAirline && data.storedAirlineId) storedAirline.value = data.storedAirlineId;
+        syncLaAirportBackendFields(data);
+        if (typeof window.syncLaRightFields === 'function') window.syncLaRightFields();
+    }
+
+    function editLaStoredRoutingRow(row) {
+        if (!row) return;
+        var payload = {};
+        try { payload = JSON.parse(row.getAttribute('data-payload') || '{}'); } catch (e) { payload = {}; }
+        var type = row.getAttribute('data-routing-type') || 'pickup';
+        var typeRadio = document.querySelector('input[name="la_routing_type"][value="' + type + '"]');
+        if (typeRadio) typeRadio.checked = true;
+
+        if (payload.source === 'airport') {
+            switchAddrTab('airport');
+            fillLaAirportForm(payload);
+        } else {
+            switchAddrTab('address');
+            fillLaAddressForm(payload);
+        }
+
+        // Remove from list while editing so CREATE can re-add / update
+        row.remove();
+        syncLaStopLocationsHidden();
+        showLaStoredRoutingEmptyIfNeeded();
+        syncLaRoutingPersistence();
+    }
+
+    function deleteLaStoredRoutingRow(row) {
+        if (!row) return;
+        var type = row.getAttribute('data-routing-type');
+        var source = row.getAttribute('data-source');
+        row.remove();
+        if (type === 'pickup') {
+            var pu = document.getElementById('pickup_location');
+            if (pu) pu.value = '';
+            if (source === 'airport') {
+                var isAirport = document.getElementById('is_airport');
+                if (isAirport) isAirport.value = '0';
+            }
+        } else if (type === 'dropoff') {
+            var dof = document.getElementById('dropoff_location');
+            if (dof) dof.value = '';
+        }
+        syncLaStopLocationsHidden();
+        showLaStoredRoutingEmptyIfNeeded();
+        syncLaRoutingPersistence();
+    }
+
     function addLaRoutingEntry(type, options) {
         options = options || {};
-        var data = getLaAddressFormData();
-        var label = buildLaRoutingLabel(data);
-        var submitValue = buildLaRoutingSubmitValue(data);
+        var panel = getActiveAddrPanel();
+        var data, label, submitValue;
 
-        if (!submitValue) {
-            if (!options.silentEmpty) alert('Please enter an address before adding routing.');
+        if (panel === 'airport') {
+            data = getLaAirportFormData();
+            if (!laAirportFormHasData(data)) {
+                if (!options.silentEmpty) alert('Please enter airport details before adding routing.');
+                return false;
+            }
+            label = buildLaRoutingLabel(data);
+            submitValue = buildLaRoutingSubmitValue(data);
+        } else if (panel === 'address') {
+            data = getLaAddressFormData();
+            label = buildLaRoutingLabel(data);
+            submitValue = buildLaRoutingSubmitValue(data);
+            if (!submitValue) {
+                if (!options.silentEmpty) alert('Please enter an address before adding routing.');
+                return false;
+            }
+        } else {
+            if (!options.silentEmpty) alert('Use Address or Airport tab to add routing.');
             return false;
         }
 
@@ -1802,9 +2186,10 @@ window.initReservationPlaces = function () {
             return false;
         }
 
-        appendLaStoredRoutingRow(type, label, submitValue);
-        syncLaRoutingToFormFields(type, submitValue);
-        clearLaAddressForm();
+        appendLaStoredRoutingRow(type, label, submitValue, data);
+        syncLaRoutingToFormFields(type, submitValue, data);
+        if (panel === 'airport') clearLaAirportForm(type === 'pickup');
+        else clearLaAddressForm();
         return true;
     }
 
@@ -1824,10 +2209,16 @@ window.initReservationPlaces = function () {
         var pu = document.getElementById('pickup_location');
         var dof = document.getElementById('dropoff_location');
         if (pu && pu.value.trim()) {
-            appendLaStoredRoutingRow('pickup', pu.value.trim(), pu.value.trim());
+            appendLaStoredRoutingRow('pickup', pu.value.trim(), pu.value.trim(), {
+                source: 'address',
+                street1: pu.value.trim()
+            });
         }
         if (dof && dof.value.trim()) {
-            appendLaStoredRoutingRow('dropoff', dof.value.trim(), dof.value.trim());
+            appendLaStoredRoutingRow('dropoff', dof.value.trim(), dof.value.trim(), {
+                source: 'address',
+                street1: dof.value.trim()
+            });
         }
         syncLaStopLocationsHidden();
     }
@@ -1845,12 +2236,24 @@ window.initReservationPlaces = function () {
 
         document.querySelectorAll('input[name="la_routing_type"]').forEach(function (radio) {
             radio.addEventListener('click', function () {
-                if (!laAddressFormHasData()) return;
+                var panel = getActiveAddrPanel();
+                if (panel === 'airport') {
+                    if (!laAirportFormHasData()) return;
+                } else if (panel === 'address') {
+                    if (!laAddressFormHasData()) return;
+                } else {
+                    return;
+                }
                 addLaRoutingEntry(radio.value, { silentEmpty: true });
             });
         });
 
-        seedLaStoredRoutingFromForm();
+        if (Array.isArray(laRoutingDraft) && laRoutingDraft.length) {
+            hydrateLaStoredRoutingFromDraft(laRoutingDraft);
+        } else {
+            seedLaStoredRoutingFromForm();
+            syncLaRoutingHiddenInput();
+        }
     }
 
     function toggleServiceUi() {
@@ -2089,6 +2492,280 @@ window.initReservationPlaces = function () {
         if (due) due.value = Math.max(0, grand - paymentsVal).toFixed(2);
         var payDisplay = document.getElementById('la-payment-total-display');
         if (payDisplay) payDisplay.textContent = '$' + grand.toFixed(2);
+    }
+
+    function getLaNoteSectionValue(id) {
+        var el = document.getElementById(id);
+        return el ? (el.value || '').trim() : '';
+    }
+
+    var LA_NOTES_STORAGE_KEY = 'dallas_bcls_la_reservation_notes';
+
+    function collectLaNotesDraft() {
+        var addTs = document.getElementById('la-note-add-ts');
+        var hideCust = document.getElementById('la-note-hide-customer');
+        return {
+            trip: document.getElementById('la-trip-notes') ? document.getElementById('la-trip-notes').value : '',
+            dispatch: document.getElementById('la-dispatch-notes') ? document.getElementById('la-dispatch-notes').value : '',
+            partner: document.getElementById('la-partner-notes') ? document.getElementById('la-partner-notes').value : '',
+            billto: document.getElementById('la-billto-notes') ? document.getElementById('la-billto-notes').value : '',
+            addr: document.getElementById('la-addr-notes') ? document.getElementById('la-addr-notes').value : '',
+            airport: document.getElementById('la-airport-notes') ? document.getElementById('la-airport-notes').value : '',
+            addTs: !!(addTs && addTs.checked),
+            hideCustomer: !!(hideCust && hideCust.checked)
+        };
+    }
+
+    function applyLaNotesDraft(draft) {
+        if (!draft || typeof draft !== 'object') return;
+        var set = function (id, value) {
+            var el = document.getElementById(id);
+            if (el && value != null) el.value = value;
+        };
+        set('la-trip-notes', draft.trip || '');
+        set('la-dispatch-notes', draft.dispatch || '');
+        set('la-partner-notes', draft.partner || '');
+        set('la-billto-notes', draft.billto || '');
+        set('la-addr-notes', draft.addr || '');
+        set('la-airport-notes', draft.airport || '');
+        var addTs = document.getElementById('la-note-add-ts');
+        var hideCust = document.getElementById('la-note-hide-customer');
+        if (addTs) addTs.checked = !!draft.addTs;
+        if (hideCust) hideCust.checked = !!draft.hideCustomer;
+    }
+
+    function saveLaNotesDraft() {
+        try {
+            localStorage.setItem(LA_NOTES_STORAGE_KEY, JSON.stringify(collectLaNotesDraft()));
+        } catch (e) {}
+        syncLaNotesForSubmit();
+        persistLaNotesToDraftBooking();
+    }
+
+    function persistLaNotesToDraftBooking() {
+        if (!laDraftSaveUrl || !laDraftBookingId) return;
+        clearTimeout(laNotesDraftTimer);
+        laNotesDraftTimer = setTimeout(function () {
+            var notes = collectLaNotesDraft();
+            var pickupDate = document.getElementById('pickup_date');
+            var pickupTime = document.getElementById('pickup_time');
+            var vehicleId = document.getElementById('vehicle-id');
+            var serviceOpt = document.getElementById('service_option');
+            var pax = document.getElementById('pax_count');
+            var luggage = document.getElementById('luggage_count');
+            var flightDetails = document.getElementById('pickup-flight-details');
+            var flightNumber = document.getElementById('flight_number');
+            var meetOption = document.getElementById('meet-option');
+            var pu = document.getElementById('pickup_location');
+            var dof = document.getElementById('dropoff_location');
+
+            fetch(laDraftSaveUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    draft_booking_id: laDraftBookingId,
+                    note: buildLaCombinedNote(),
+                    notes: {
+                        trip: notes.trip || '',
+                        dispatch: notes.dispatch || '',
+                        partner: notes.partner || '',
+                        billto: notes.billto || '',
+                        addr: notes.addr || '',
+                        airport: notes.airport || '',
+                        add_ts: !!notes.addTs,
+                        hide_customer: !!notes.hideCustomer
+                    },
+                    pickup_date: pickupDate && pickupDate.value ? pickupDate.value : null,
+                    pickup_time: pickupTime && pickupTime.value ? pickupTime.value : null,
+                    pickup_location: pu ? pu.value : null,
+                    dropoff_location: dof ? dof.value : null,
+                    vehicle_id: vehicleId && vehicleId.value ? parseInt(vehicleId.value, 10) : null,
+                    service_option: serviceOpt ? serviceOpt.value : null,
+                    pax_count: pax && pax.value ? parseInt(pax.value, 10) : null,
+                    luggage_count: luggage && luggage.value !== '' ? parseInt(luggage.value, 10) : null,
+                    pickup_flight_details: flightDetails ? flightDetails.value : null,
+                    flight_number: flightNumber ? flightNumber.value : null,
+                    meet_option: meetOption ? meetOption.value : null
+                })
+            }).catch(function () { /* ignore */ });
+        }, 350);
+    }
+
+    function loadLaNotesDraft() {
+        try {
+            var raw = localStorage.getItem(LA_NOTES_STORAGE_KEY);
+            if (!raw) return null;
+            return JSON.parse(raw);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function clearLaNotesDraft() {
+        try { localStorage.removeItem(LA_NOTES_STORAGE_KEY); } catch (e) {}
+    }
+
+    function buildLaCombinedNote() {
+        var sections = [];
+        var tripBody = getLaNoteSectionValue('la-trip-notes');
+        var dispatch = getLaNoteSectionValue('la-dispatch-notes');
+        var partner = getLaNoteSectionValue('la-partner-notes');
+        var billto = getLaNoteSectionValue('la-billto-notes');
+        var addr = getLaNoteSectionValue('la-addr-notes');
+        var airport = getLaNoteSectionValue('la-airport-notes');
+
+        if (tripBody) sections.push(tripBody);
+        if (dispatch) sections.push('[Dispatch Notes]\n' + dispatch);
+        if (partner) sections.push('[Partner Notes]\n' + partner);
+        if (billto) sections.push('[Bill To & Pax Notes]\n' + billto);
+        if (addr) sections.push('[Address Notes]\n' + addr);
+        if (airport) sections.push('[Airport Notes]\n' + airport);
+
+        var flags = [];
+        var addTs = document.getElementById('la-note-add-ts');
+        var hideCust = document.getElementById('la-note-hide-customer');
+        if (addTs && addTs.checked) flags.push('Add to T/S');
+        if (hideCust && hideCust.checked) flags.push('Hide From Customer');
+        if (flags.length) sections.push('[Flags]\n' + flags.join(', '));
+
+        return sections.join('\n\n').slice(0, 4000);
+    }
+
+    function parseLaCombinedNoteIntoFields(raw) {
+        if (!raw) return;
+        var tripEl = document.getElementById('la-trip-notes');
+        var dispatchEl = document.getElementById('la-dispatch-notes');
+        var partnerEl = document.getElementById('la-partner-notes');
+        var billtoEl = document.getElementById('la-billto-notes');
+        var addrEl = document.getElementById('la-addr-notes');
+        var airportEl = document.getElementById('la-airport-notes');
+        var hiddenNote = document.getElementById('note');
+
+        function extract(label) {
+            var re = new RegExp('\\[\\s*' + label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\]\\s*([\\s\\S]*?)(?=\\n\\s*\\[|$)', 'i');
+            var m = raw.match(re);
+            return m ? m[1].trim() : '';
+        }
+
+        var dispatch = extract('Dispatch Notes');
+        var partner = extract('Partner Notes');
+        var billto = extract('Bill To & Pax Notes');
+        var addr = extract('Address Notes');
+        var airport = extract('Airport Notes');
+        var flags = extract('Flags');
+
+        var tripBody = raw;
+        ['Dispatch Notes', 'Partner Notes', 'Bill To & Pax Notes', 'Address Notes', 'Airport Notes', 'Flags'].forEach(function (label) {
+            var re = new RegExp('\\n*\\[\\s*' + label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\][\\s\\S]*$', 'i');
+            tripBody = tripBody.replace(re, '');
+        });
+        tripBody = tripBody.replace(/^\[Trip Notes\]\s*/i, '').trim();
+
+        if (tripEl) tripEl.value = tripBody;
+        if (dispatchEl) dispatchEl.value = dispatch || '';
+        if (partnerEl) partnerEl.value = partner || '';
+        if (billtoEl) billtoEl.value = billto || '';
+        if (addrEl) addrEl.value = addr || '';
+        if (airportEl) airportEl.value = airport || '';
+        if (hiddenNote) hiddenNote.value = raw;
+
+        if (flags) {
+            var addTs = document.getElementById('la-note-add-ts');
+            var hideCust = document.getElementById('la-note-hide-customer');
+            if (addTs) addTs.checked = /Add to T\/S/i.test(flags);
+            if (hideCust) hideCust.checked = /Hide From Customer/i.test(flags);
+        }
+    }
+
+    function syncLaNotesForSubmit() {
+        var hiddenNote = document.getElementById('note');
+        if (!hiddenNote) return;
+        hiddenNote.value = buildLaCombinedNote();
+        return hiddenNote.value;
+    }
+
+    function flashLaNotesSaved(btn) {
+        if (!btn) return;
+        var original = btn.getAttribute('data-original-label') || btn.textContent;
+        btn.setAttribute('data-original-label', original);
+        btn.classList.add('saved');
+        btn.textContent = 'SAVED';
+        window.setTimeout(function () {
+            btn.classList.remove('saved');
+            btn.textContent = original;
+        }, 1500);
+    }
+
+    function initLaNotesSave() {
+        var hiddenNote = document.getElementById('note');
+        var serverNote = hiddenNote ? (hiddenNote.value || '').trim() : '';
+        var draft = loadLaNotesDraft();
+
+        if (serverNote) {
+            parseLaCombinedNoteIntoFields(serverNote);
+            // Fill any empty secondary boxes from local draft
+            if (draft) {
+                var fillIfEmpty = function (id, value) {
+                    var el = document.getElementById(id);
+                    if (el && !(el.value || '').trim() && value) el.value = value;
+                };
+                fillIfEmpty('la-dispatch-notes', draft.dispatch);
+                fillIfEmpty('la-partner-notes', draft.partner);
+                fillIfEmpty('la-billto-notes', draft.billto);
+                fillIfEmpty('la-addr-notes', draft.addr);
+                fillIfEmpty('la-airport-notes', draft.airport);
+            }
+        } else if (draft) {
+            applyLaNotesDraft(draft);
+        }
+
+        syncLaNotesForSubmit();
+
+        var saveAndFlash = function (btn) {
+            saveLaNotesDraft();
+            flashLaNotesSaved(btn);
+        };
+
+        var tripBtn = document.getElementById('la-btn-save-trip-notes');
+        if (tripBtn) {
+            tripBtn.addEventListener('click', function () {
+                saveAndFlash(tripBtn);
+            });
+        }
+
+        var dispatchBtn = document.getElementById('la-btn-save-dispatch-notes');
+        if (dispatchBtn) {
+            dispatchBtn.addEventListener('click', function () {
+                saveAndFlash(dispatchBtn);
+            });
+        }
+
+        var noteIds = [
+            'la-trip-notes', 'la-dispatch-notes', 'la-partner-notes',
+            'la-billto-notes', 'la-addr-notes', 'la-airport-notes'
+        ];
+        var draftTimer = null;
+        var scheduleDraftSave = function () {
+            if (draftTimer) clearTimeout(draftTimer);
+            draftTimer = setTimeout(function () {
+                saveLaNotesDraft();
+            }, 300);
+        };
+        noteIds.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('input', scheduleDraftSave);
+            el.addEventListener('change', scheduleDraftSave);
+        });
+        ['la-note-add-ts', 'la-note-hide-customer'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('change', scheduleDraftSave);
+        });
     }
 
     function initLaRightColumn() {
@@ -2378,6 +3055,7 @@ window.initReservationPlaces = function () {
     initLaAirlines();
     initLaAirports();
     initLaRightColumn();
+    initLaNotesSave();
 
     var accountHidden = document.getElementById('account_id');
     if (accountHidden) accountHidden.addEventListener('change', syncAccountFromSelect);
@@ -2417,6 +3095,7 @@ window.initReservationPlaces = function () {
                 if (typeof window.syncLaRightFields === 'function') window.syncLaRightFields();
                 if (typeof window.syncLaIntlPhoneValues === 'function') window.syncLaIntlPhoneValues();
                 if (typeof syncLaStopLocationsHidden === 'function') syncLaStopLocationsHidden();
+                if (typeof syncLaNotesForSubmit === 'function') syncLaNotesForSubmit();
 
                 payBtn.disabled = true;
                 if (spinner) spinner.classList.remove('d-none');
@@ -2458,7 +3137,10 @@ window.initReservationPlaces = function () {
                         });
                         data = await fin.json();
                     }
-                    if (data.success && data.redirect) window.location.href = data.redirect;
+                    if (data.success && data.redirect) {
+                        if (typeof clearLaNotesDraft === 'function') clearLaNotesDraft();
+                        window.location.href = data.redirect;
+                    }
                     else alert(data.message || 'Payment failed.');
                 } catch (e) {
                     alert(e.message || 'Request failed.');
@@ -2479,6 +3161,8 @@ window.initReservationPlaces = function () {
         syncBookerHidden();
         syncReturnHidden();
         if (typeof syncLaStopLocationsHidden === 'function') syncLaStopLocationsHidden();
+        if (typeof syncLaNotesForSubmit === 'function') syncLaNotesForSubmit();
+        if (typeof saveLaNotesDraft === 'function') saveLaNotesDraft();
     });
 })();
 </script>

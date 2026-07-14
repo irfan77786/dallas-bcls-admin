@@ -12,6 +12,7 @@ use App\Models\Booking;
 use App\Models\BookingAccountSnapshot;
 use App\Models\FlightDetail;
 use App\Models\Payment;
+use App\Models\ReservationRoutingDraft;
 use App\Models\ReturnService;
 use App\Models\Vehicle;
 use App\Services\BookingPricingService;
@@ -44,9 +45,326 @@ class ReservationController extends Controller
 
     public function createLa()
     {
+        $draftBooking = $this->getOrCreateLaDraftBooking();
+
+        $routingDraft = [];
+        if ($draftBooking && is_array($draftBooking->routing_information)) {
+            $routingDraft = $draftBooking->routing_information;
+        } elseif (Schema::hasTable('reservation_routing_drafts') && auth()->check()) {
+            $draft = ReservationRoutingDraft::query()
+                ->where('user_id', auth()->id())
+                ->value('routing_information');
+            $routingDraft = is_array($draft) ? $draft : [];
+        }
+
         return $this->reservationView('pages.reservation-la', 'Add Reservation', [
-            'nextConfirmationNumber' => $this->nextPublicBookingId(),
+            'nextConfirmationNumber' => $draftBooking?->booking_id ?? $this->nextPublicBookingId(),
+            'routingDraft' => $routingDraft,
+            'draftBooking' => $draftBooking,
+            'formDefaults' => $draftBooking ? $this->draftBookingFormDefaults($draftBooking) : [],
         ]);
+    }
+
+    public function saveRoutingDraft(Request $request)
+    {
+        $validated = $request->validate([
+            'draft_booking_id' => ['nullable', 'integer'],
+            'routing_information' => ['nullable', 'array'],
+            'routing_information.*.type' => ['required', 'string', Rule::in(['pickup', 'dropoff', 'stop', 'wait'])],
+            'routing_information.*.label' => ['required', 'string', 'max:500'],
+            'routing_information.*.submit_value' => ['required', 'string', 'max:1000'],
+            'routing_information.*.source' => ['nullable', 'string', 'max:50'],
+            'routing_information.*.payload' => ['nullable', 'array'],
+            'pickup_location' => ['nullable', 'string', 'max:500'],
+            'dropoff_location' => ['nullable', 'string', 'max:500'],
+            'stop_locations' => ['nullable', 'array'],
+            'stop_locations.*' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $routing = $this->cleanRoutingInformation($validated['routing_information'] ?? []);
+        $draft = $this->resolveLaDraftBooking($validated['draft_booking_id'] ?? null);
+
+        if ($draft) {
+            $pickup = null;
+            $dropoff = null;
+            $stops = [];
+            foreach ($routing as $row) {
+                $type = $row['type'] ?? '';
+                $value = $row['submit_value'] ?? '';
+                if ($type === 'pickup' && $value !== '') {
+                    $pickup = $value;
+                } elseif ($type === 'dropoff' && $value !== '') {
+                    $dropoff = $value;
+                } elseif (in_array($type, ['stop', 'wait'], true) && $value !== '') {
+                    $stops[] = $value;
+                }
+            }
+
+            $payload = [
+                'routing_information' => $routing ?: null,
+                'stop_locations' => $stops ?: null,
+            ];
+            if ($pickup !== null) {
+                $payload['pickup_location'] = $pickup;
+            }
+            if ($dropoff !== null) {
+                $payload['dropoff_location'] = $dropoff;
+            }
+            if (array_key_exists('pickup_location', $validated) && filled($validated['pickup_location'])) {
+                $payload['pickup_location'] = $validated['pickup_location'];
+            }
+            if (array_key_exists('dropoff_location', $validated) && filled($validated['dropoff_location'])) {
+                $payload['dropoff_location'] = $validated['dropoff_location'];
+            }
+            if (array_key_exists('stop_locations', $validated)) {
+                $payload['stop_locations'] = $this->cleanStopLocations($validated['stop_locations'] ?? []) ?: null;
+            }
+
+            $draft->fill($payload);
+            $draft->save();
+        }
+
+        if (Schema::hasTable('reservation_routing_drafts') && auth()->check()) {
+            ReservationRoutingDraft::query()->updateOrCreate(
+                ['user_id' => auth()->id()],
+                ['routing_information' => $routing]
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'count' => count($routing),
+            'draft_booking_id' => $draft?->id,
+        ]);
+    }
+
+    public function saveLaDraft(Request $request)
+    {
+        $validated = $request->validate([
+            'draft_booking_id' => ['nullable', 'integer'],
+            'note' => ['nullable', 'string', 'max:4000'],
+            'notes' => ['nullable', 'array'],
+            'notes.trip' => ['nullable', 'string', 'max:4000'],
+            'notes.dispatch' => ['nullable', 'string', 'max:1000'],
+            'notes.partner' => ['nullable', 'string', 'max:1000'],
+            'notes.billto' => ['nullable', 'string', 'max:1000'],
+            'notes.addr' => ['nullable', 'string', 'max:1000'],
+            'notes.airport' => ['nullable', 'string', 'max:1000'],
+            'notes.add_ts' => ['nullable', 'boolean'],
+            'notes.hide_customer' => ['nullable', 'boolean'],
+            'pickup_date' => ['nullable', 'date'],
+            'pickup_time' => ['nullable', 'string', 'max:8'],
+            'pickup_location' => ['nullable', 'string', 'max:500'],
+            'dropoff_location' => ['nullable', 'string', 'max:500'],
+            'vehicle_id' => ['nullable', 'integer', 'exists:vehicles,id'],
+            'service_option' => ['nullable', 'string', 'max:50'],
+            'pax_count' => ['nullable', 'integer', 'min:1', 'max:99'],
+            'luggage_count' => ['nullable', 'integer', 'min:0', 'max:99'],
+            'account_id' => ['nullable', 'integer'],
+            'custom_total_price' => ['nullable', 'numeric', 'min:0'],
+            'pickup_flight_details' => ['nullable', 'string', 'max:255'],
+            'flight_number' => ['nullable', 'string', 'max:50'],
+            'meet_option' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $draft = $this->resolveLaDraftBooking($validated['draft_booking_id'] ?? null);
+        if (! $draft) {
+            return response()->json(['success' => false, 'message' => 'Draft booking not found.'], 404);
+        }
+
+        $note = $validated['note'] ?? null;
+        if ($note === null && isset($validated['notes']) && is_array($validated['notes'])) {
+            $note = $this->buildCombinedNoteFromSections($validated['notes']);
+        }
+
+        $updates = array_filter([
+            'note' => $note,
+            'pickup_date' => $validated['pickup_date'] ?? null,
+            'pickup_time' => $validated['pickup_time'] ?? null,
+            'pickup_location' => $validated['pickup_location'] ?? null,
+            'dropoff_location' => $validated['dropoff_location'] ?? null,
+            'vehicle_id' => $validated['vehicle_id'] ?? null,
+            'service_option' => $validated['service_option'] ?? null,
+            'pax_count' => $validated['pax_count'] ?? null,
+            'luggage_count' => $validated['luggage_count'] ?? null,
+            'total_price' => array_key_exists('custom_total_price', $validated) && $validated['custom_total_price'] !== null
+                ? round((float) $validated['custom_total_price'], 2)
+                : null,
+        ], fn ($v) => $v !== null);
+
+        if ($updates) {
+            $draft->fill($updates);
+            $draft->save();
+        }
+
+        // Persist flight fields on draft passenger if provided
+        if (filled($validated['pickup_flight_details'] ?? null) || filled($validated['flight_number'] ?? null) || filled($validated['meet_option'] ?? null)) {
+            $this->syncDraftFlightFields($draft, $validated);
+        }
+
+        return response()->json([
+            'success' => true,
+            'draft_booking_id' => $draft->id,
+            'booking_id' => $draft->booking_id,
+            'updated_at' => optional($draft->updated_at)->toDateTimeString(),
+        ]);
+    }
+
+    private function getOrCreateLaDraftBooking(): ?Booking
+    {
+        if (! auth()->check() || ! Schema::hasColumn('bookings', 'is_draft')) {
+            return null;
+        }
+
+        $existing = Booking::query()
+            ->where('is_draft', true)
+            ->where('draft_user_id', auth()->id())
+            ->latest('id')
+            ->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        $vehicleId = Vehicle::query()->orderBy('id')->value('id');
+        if (! $vehicleId) {
+            // Cannot satisfy NOT NULL vehicle_id without a vehicle row
+            return null;
+        }
+
+        return Booking::create([
+            'booking_id' => (string) $this->nextPublicBookingId(),
+            'vehicle_id' => $vehicleId,
+            'pickup_location' => '',
+            'dropoff_location' => null,
+            'stop_locations' => null,
+            'routing_information' => [],
+            'pickup_date' => now()->toDateString(),
+            'pickup_time' => '00:00:00',
+            'total_price' => 0,
+            'payment_status' => 'Draft',
+            'is_draft' => true,
+            'draft_user_id' => auth()->id(),
+            'from_admin_reservation' => true,
+            'pax_count' => 1,
+            'luggage_count' => 0,
+            'service_option' => 'point_to_point',
+            'note' => null,
+        ]);
+    }
+
+    private function resolveLaDraftBooking(?int $draftBookingId): ?Booking
+    {
+        if (! auth()->check() || ! Schema::hasColumn('bookings', 'is_draft')) {
+            return null;
+        }
+
+        $query = Booking::query()
+            ->where('is_draft', true)
+            ->where('draft_user_id', auth()->id());
+
+        if ($draftBookingId) {
+            $query->where('id', $draftBookingId);
+        }
+
+        return $query->latest('id')->first() ?: $this->getOrCreateLaDraftBooking();
+    }
+
+    private function draftBookingFormDefaults(Booking $booking): array
+    {
+        $hasRealTrip = filled($booking->pickup_location) && trim((string) $booking->pickup_location) !== '';
+
+        return [
+            'note' => $booking->note,
+            'pickup_date' => $hasRealTrip && $booking->pickup_date
+                ? (\Carbon\Carbon::parse($booking->pickup_date)->format('Y-m-d'))
+                : null,
+            'pickup_time' => $hasRealTrip && $booking->pickup_time
+                ? substr((string) $booking->pickup_time, 0, 5)
+                : null,
+            'pickup_location' => $hasRealTrip ? $booking->pickup_location : '',
+            'dropoff_location' => $booking->dropoff_location,
+            // Don't force placeholder vehicle into the UI selector
+            'vehicle_id' => null,
+            'service_option' => $booking->service_option ?: 'point_to_point',
+            'pax_count' => $booking->pax_count ?: 1,
+            'luggage_count' => $booking->luggage_count ?: 0,
+            'custom_total_price' => ((float) $booking->total_price) > 0 ? $booking->total_price : null,
+            'stop_locations' => $booking->stop_locations ?? [],
+            'routing_information' => $booking->routing_information ?? [],
+        ];
+    }
+
+    private function buildCombinedNoteFromSections(array $notes): string
+    {
+        $sections = [];
+        $trip = trim((string) ($notes['trip'] ?? ''));
+        $dispatch = trim((string) ($notes['dispatch'] ?? ''));
+        $partner = trim((string) ($notes['partner'] ?? ''));
+        $billto = trim((string) ($notes['billto'] ?? ''));
+        $addr = trim((string) ($notes['addr'] ?? ''));
+        $airport = trim((string) ($notes['airport'] ?? ''));
+
+        if ($trip !== '') {
+            $sections[] = $trip;
+        }
+        if ($dispatch !== '') {
+            $sections[] = "[Dispatch Notes]\n".$dispatch;
+        }
+        if ($partner !== '') {
+            $sections[] = "[Partner Notes]\n".$partner;
+        }
+        if ($billto !== '') {
+            $sections[] = "[Bill To & Pax Notes]\n".$billto;
+        }
+        if ($addr !== '') {
+            $sections[] = "[Address Notes]\n".$addr;
+        }
+        if ($airport !== '') {
+            $sections[] = "[Airport Notes]\n".$airport;
+        }
+
+        $flags = [];
+        if (! empty($notes['add_ts'])) {
+            $flags[] = 'Add to T/S';
+        }
+        if (! empty($notes['hide_customer'])) {
+            $flags[] = 'Hide From Customer';
+        }
+        if ($flags) {
+            $sections[] = "[Flags]\n".implode(', ', $flags);
+        }
+
+        return mb_substr(implode("\n\n", $sections), 0, 4000);
+    }
+
+    private function syncDraftFlightFields(Booking $draft, array $validated): void
+    {
+        $passenger = $draft->passengers()->first();
+        if (! $passenger) {
+            $passenger = $draft->passengers()->create([
+                'first_name' => 'Draft',
+                'last_name' => 'Passenger',
+                'email' => null,
+                'phone_number' => null,
+            ]);
+        }
+
+        $flight = $passenger->flightDetail;
+        if (! $flight) {
+            $flight = new FlightDetail(['passenger_id' => $passenger->id]);
+        }
+        if (array_key_exists('pickup_flight_details', $validated)) {
+            $flight->pickup_flight_details = $validated['pickup_flight_details'];
+        }
+        if (array_key_exists('flight_number', $validated)) {
+            $flight->flight_number = $validated['flight_number'];
+        }
+        if (array_key_exists('meet_option', $validated)) {
+            $flight->meet_option = $validated['meet_option'];
+        }
+        $flight->no_flight_info = filled($flight->pickup_flight_details) || filled($flight->flight_number);
+        $flight->passenger_id = $passenger->id;
+        $flight->save();
     }
 
     public function edit(Booking $booking)
@@ -342,10 +660,21 @@ class ReservationController extends Controller
                 $hours = $trip['service_type'] === 'hourlyHire' ? (int) $trip['select_hours'] : null;
                 $accountSnapshot = $this->selectedAccountSnapshot($validated);
                 $stopLocations = $this->cleanStopLocations($validated['stop_locations'] ?? []);
+                $routingInformation = $this->cleanRoutingInformation($validated['routing_information'] ?? []);
 
-                $booking = Booking::create([
+                $draftBooking = null;
+                $draftBookingId = (int) ($validated['draft_booking_id'] ?? $request->input('draft_booking_id') ?? 0);
+                if ($draftBookingId > 0 && Schema::hasColumn('bookings', 'is_draft')) {
+                    $draftBooking = Booking::query()
+                        ->where('id', $draftBookingId)
+                        ->where('is_draft', true)
+                        ->where('draft_user_id', auth()->id())
+                        ->first();
+                }
+
+                $bookingPayload = [
                     'booker_id' => $booker?->id,
-                    'booking_id' => $customBookingId,
+                    'booking_id' => $draftBooking?->booking_id ?: $customBookingId,
                     'user_id' => null,
                     'vehicle_id' => $vehicle->id,
                     'pickup_location' => $trip['pickup_location'],
@@ -366,7 +695,31 @@ class ReservationController extends Controller
                         : null,
                     'service_option' => $validated['service_option'],
                     'from_admin_reservation' => true,
-                ]);
+                ];
+                if (Schema::hasColumn('bookings', 'routing_information')) {
+                    $bookingPayload['routing_information'] = $routingInformation ?: null;
+                }
+                if (Schema::hasColumn('bookings', 'is_draft')) {
+                    $bookingPayload['is_draft'] = false;
+                    $bookingPayload['draft_user_id'] = null;
+                }
+
+                if ($draftBooking) {
+                    $draftBooking->fill($bookingPayload);
+                    $draftBooking->save();
+                    $booking = $draftBooking->fresh();
+
+                    // Replace placeholder draft passengers with real passenger data
+                    foreach ($booking->passengers as $oldPassenger) {
+                        optional($oldPassenger->flightDetail)->delete();
+                        $oldPassenger->delete();
+                    }
+                    if ($booking->breakdown) {
+                        $booking->breakdown()->delete();
+                    }
+                } else {
+                    $booking = Booking::create($bookingPayload);
+                }
 
                 $this->syncBookingAccountSnapshot($booking, $accountSnapshot);
 
@@ -427,6 +780,8 @@ class ReservationController extends Controller
 
             return back()->withErrors(['save' => 'Could not save reservation: ' . $e->getMessage()])->withInput();
         }
+
+        $this->clearRoutingDraftForCurrentUser();
 
         $passenger = $booking->passengers->first();
 
@@ -694,8 +1049,9 @@ class ReservationController extends Controller
                 $hours = $trip['service_type'] === 'hourlyHire' ? (int) $trip['select_hours'] : null;
                 $accountSnapshot = $this->selectedAccountSnapshot($validated);
                 $stopLocations = $this->cleanStopLocations($validated['stop_locations'] ?? []);
+                $routingInformation = $this->cleanRoutingInformation($validated['routing_information'] ?? []);
 
-                $booking->update([
+                $updatePayload = [
                     'booker_id' => $booker?->id,
                     'vehicle_id' => $vehicle->id,
                     'pickup_location' => $trip['pickup_location'],
@@ -715,7 +1071,11 @@ class ReservationController extends Controller
                         : null,
                     'service_option' => $validated['service_option'],
                     'from_admin_reservation' => true,
-                ]);
+                ];
+                if (Schema::hasColumn('bookings', 'routing_information')) {
+                    $updatePayload['routing_information'] = $routingInformation ?: null;
+                }
+                $booking->update($updatePayload);
 
                 $this->syncBookingAccountSnapshot($booking, $accountSnapshot);
 
@@ -1075,6 +1435,9 @@ class ReservationController extends Controller
 
         $request->merge([
             'stop_locations' => $this->cleanStopLocations($request->input('stop_locations', [])),
+            'routing_information' => $this->cleanRoutingInformation(
+                $this->decodeRoutingInformationInput($request->input('routing_information'))
+            ),
         ]);
 
         $this->mergeServiceOptionToServiceType($request);
@@ -1188,7 +1551,7 @@ class ReservationController extends Controller
             'return_service' => ['nullable', 'boolean'],
             'return_pickup_date' => [Rule::requiredIf(fn () => $request->boolean('return_service') && $request->input('service_type') === 'pointToPoint'), 'nullable', 'date_format:Y-m-d'],
             'return_pickup_time' => [Rule::requiredIf(fn () => $request->boolean('return_service') && $request->input('service_type') === 'pointToPoint'), 'nullable', 'date_format:H:i'],
-            'note' => ['nullable', 'string', 'max:1000'],
+            'note' => ['nullable', 'string', 'max:4000'],
             'child_seat_required' => ['nullable', 'boolean'],
             'child_seat_type' => [
                 Rule::requiredIf(fn () => $request->boolean('child_seat_required')),
@@ -1208,6 +1571,13 @@ class ReservationController extends Controller
             'service_option' => ['required', 'string', Rule::in(['from_airport', 'to_airport', 'point_to_point', 'hourly_as_directed'])],
             'stop_locations' => ['nullable', 'array'],
             'stop_locations.*' => ['nullable', 'string', 'max:500'],
+            'routing_information' => ['nullable', 'array'],
+            'routing_information.*.type' => ['nullable', 'string', 'max:20'],
+            'routing_information.*.label' => ['nullable', 'string', 'max:500'],
+            'routing_information.*.submit_value' => ['nullable', 'string', 'max:1000'],
+            'routing_information.*.source' => ['nullable', 'string', 'max:50'],
+            'routing_information.*.payload' => ['nullable', 'array'],
+            'draft_booking_id' => ['nullable', 'integer'],
         ];
 
         if ($requirePaymentMethod) {
@@ -1254,6 +1624,7 @@ class ReservationController extends Controller
             'pickup_location' => $booking->pickup_location,
             'dropoff_location' => $booking->dropoff_location,
             'stop_locations' => array_values(array_filter((array) ($booking->stop_locations ?? []), fn ($v) => is_string($v) && trim($v) !== '')),
+            'routing_information' => is_array($booking->routing_information ?? null) ? $booking->routing_information : [],
             'pickup_date' => $booking->pickup_date,
             'pickup_time' => substr((string) $booking->pickup_time, 0, 5),
             'return_service' => (bool) $returnService,
@@ -1390,6 +1761,63 @@ class ReservationController extends Controller
         }
 
         return array_values($out);
+    }
+
+    private function decodeRoutingInformationInput(mixed $raw): array
+    {
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($raw) ? $raw : [];
+    }
+
+    private function cleanRoutingInformation(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $allowedTypes = ['pickup', 'dropoff', 'stop', 'wait'];
+        $out = [];
+
+        foreach ($raw as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $type = strtolower(trim((string) ($row['type'] ?? '')));
+            $label = trim((string) ($row['label'] ?? ''));
+            $submitValue = trim((string) ($row['submit_value'] ?? $label));
+            if (! in_array($type, $allowedTypes, true) || $label === '' || $submitValue === '') {
+                continue;
+            }
+
+            $payload = $row['payload'] ?? [];
+            if (! is_array($payload)) {
+                $payload = [];
+            }
+
+            $out[] = [
+                'type' => $type,
+                'label' => mb_substr($label, 0, 500),
+                'submit_value' => mb_substr($submitValue, 0, 1000),
+                'source' => mb_substr(trim((string) ($row['source'] ?? ($payload['source'] ?? 'address'))), 0, 50),
+                'payload' => $payload,
+            ];
+        }
+
+        return array_values($out);
+    }
+
+    private function clearRoutingDraftForCurrentUser(): void
+    {
+        if (! Schema::hasTable('reservation_routing_drafts') || ! auth()->check()) {
+            return;
+        }
+
+        ReservationRoutingDraft::query()->where('user_id', auth()->id())->delete();
     }
 
     /**
