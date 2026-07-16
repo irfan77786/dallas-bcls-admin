@@ -231,42 +231,67 @@
     <div class="la-field" style="margin-bottom:4px;">
         <label>Stored FBOs</label>
         <div class="la-stored-with-btn">
-            <select class="la-stored-pink" tabindex="-1"><option></option></select>
+            <select class="la-stored-pink" id="la-stored-fbo">
+                <option value=""></option>
+                @foreach(($fbos ?? collect()) as $fbo)
+                    <option value="{{ $fbo->id }}"
+                        data-name="{{ $fbo->name }}"
+                        data-airport-code="{{ $fbo->airport_code }}"
+                        data-street1="{{ $fbo->address_line1 }}"
+                        data-street2="{{ $fbo->address_line2 }}"
+                        data-city="{{ $fbo->city }}"
+                        data-state="{{ $fbo->state }}"
+                        data-zip="{{ $fbo->zip }}"
+                        data-phone="{{ $fbo->phone }}"
+                        data-notes="{{ $fbo->notes }}"
+                        data-country="{{ $fbo->country ?: 'United States' }}">
+                        {{ $fbo->displayLabel() }}
+                    </option>
+                @endforeach
+            </select>
             <button type="button" class="la-btn-dots" tabindex="-1">...</button>
         </div>
     </div>
     <div class="la-field-row">
         <div class="la-field" style="grid-column: span 9;">
             <label>Location Description/ FBO Name</label>
-            <input type="text" tabindex="-1">
+            <input type="text" id="la-fbo-name" tabindex="-1" autocomplete="off">
         </div>
         <div class="la-field" style="grid-column: span 3;">
             <label>Tail#</label>
-            <input type="text" tabindex="-1">
+            <input type="text" id="la-fbo-tail" tabindex="-1" autocomplete="off">
         </div>
         <div class="la-field" style="grid-column: span 12;">
             <label>Street Address Line 1</label>
-            <input type="text" tabindex="-1">
+            <input type="text" id="la-fbo-street1" tabindex="-1" autocomplete="off">
         </div>
         <div class="la-field" style="grid-column: span 12;">
             <label>Street Address Line 2</label>
-            <input type="text" tabindex="-1">
+            <input type="text" id="la-fbo-street2" tabindex="-1" autocomplete="off">
         </div>
         <div class="la-field" style="grid-column: span 6;">
             <label>City</label>
-            <input type="text" tabindex="-1">
+            <input type="text" id="la-fbo-city" tabindex="-1" autocomplete="off">
         </div>
         <div class="la-field" style="grid-column: span 6;">
             <label>State/Prov</label>
-            <select tabindex="-1"><option>Texas</option>@foreach($usStates as $st)<option>{{ $st }}</option>@endforeach</select>
+            <select id="la-fbo-state" tabindex="-1">
+                <option value=""></option>
+                <option value="Texas">Texas</option>
+                @foreach($usStates as $st)
+                    <option value="{{ $st }}">{{ $st }}</option>
+                @endforeach
+            </select>
         </div>
         <div class="la-field" style="grid-column: span 4;">
             <label>Zip/Post</label>
-            <input type="text" tabindex="-1">
+            <input type="text" id="la-fbo-zip" tabindex="-1" autocomplete="off">
         </div>
         <div class="la-field" style="grid-column: span 8;">
             <label>Country</label>
-            <select tabindex="-1"><option>United States</option></select>
+            <select id="la-fbo-country" tabindex="-1">
+                <option value="United States">United States</option>
+            </select>
         </div>
     </div>
     @include('pages.partials.reservation-la-routing-notes')

@@ -132,6 +132,10 @@
         padding: 1px 3px;
         background: #fff;
     }
+    .la-field input[type="date"],
+    .la-field input[type="time"] {
+        cursor: pointer;
+    }
     .la-field textarea { height: 48px; resize: vertical; }
     .la-field textarea.la-notes-lg { height: 56px; }
     .la-field .la-readonly { background: #eee; }
@@ -327,7 +331,17 @@
     }
     .la-routing-stored-row:last-child { border-bottom: none; }
     .la-routing-stored-row[data-source="address"] { background: #d6e8ff; border-bottom-color: #b8d4f0; }
+    .la-routing-stored-row[data-source="airport"] { background: #fff8c6; border-bottom-color: #e0d48a; }
+    .la-routing-stored-row[data-source="fbo"] { background: #ffd6e8; border-bottom-color: #f0b8d0; }
     .la-routing-stored-main { flex: 1; min-width: 0; }
+    .la-routing-source-tag {
+        display: inline-block; margin-right: 4px; padding: 0 4px;
+        font-size: 9px; font-weight: 700; letter-spacing: 0.02em;
+        border: 1px solid transparent; border-radius: 2px; vertical-align: baseline;
+    }
+    .la-routing-source-tag.is-address { background: #c5dbf7; border-color: #8eb6e0; color: #1a4a7a; }
+    .la-routing-source-tag.is-airport { background: #f5e89a; border-color: #c9b84a; color: #6a5a00; }
+    .la-routing-source-tag.is-fbo { background: #f5b8d0; border-color: #d07098; color: #7a2048; }
     .la-routing-not-verified { color: #c00; font-weight: 700; margin-left: 4px; }
     .la-routing-stored-actions { display: inline-flex; gap: 8px; flex-shrink: 0; }
     .la-routing-edit {
@@ -752,6 +766,18 @@
         'city' => $a->city,
         'state' => $a->state ?? null,
     ])->values();
+    $laFbosJson = ($fbos ?? collect())->map(fn ($f) => [
+        'id' => $f->id,
+        'name' => $f->name,
+        'airportCode' => $f->airport_code,
+        'street1' => $f->address_line1,
+        'street2' => $f->address_line2,
+        'city' => $f->city,
+        'state' => $f->state,
+        'zip' => $f->zip,
+        'country' => $f->country ?: 'United States',
+        'label' => $f->displayLabel(),
+    ])->values();
 @endphp
 
 <div class="la-reservation-page">
@@ -1112,6 +1138,7 @@
                             'pickupFlightOld' => $pickupFlightOld,
                             'airlines' => $airlines ?? collect(),
                             'airports' => $airports ?? collect(),
+                            'fbos' => $fbos ?? collect(),
                         ])
 
                         <div class="la-routing-actions">
@@ -1452,6 +1479,7 @@ window.initReservationPlaces = function () {
     var finalizeUrl = @json(route('reservation.finalize'));
     var laAirlines = @json($laAirlinesJson);
     var laAirports = @json($laAirportsJson);
+    var laFbos = @json($laFbosJson);
     var CHILD_SEAT_PRICE_PER_SEAT_USD = @json((float) ($childSeatPricePerSeatUsd ?? 20));
     var laChildSeatLines = [];
     var laTripBaseAmount = 0;
@@ -1774,6 +1802,29 @@ window.initReservationPlaces = function () {
         };
     }
 
+    function getLaFboFormData() {
+        var val = function (id) {
+            var el = document.getElementById(id);
+            return el ? (el.value || '').trim() : '';
+        };
+        var storedFbo = document.getElementById('la-stored-fbo');
+        return {
+            source: 'fbo',
+            locationName: val('la-fbo-name'),
+            tailNumber: val('la-fbo-tail'),
+            street1: val('la-fbo-street1'),
+            street2: val('la-fbo-street2'),
+            city: val('la-fbo-city'),
+            state: val('la-fbo-state'),
+            zip: val('la-fbo-zip'),
+            country: val('la-fbo-country') || 'United States',
+            notes: val('la-addr-notes'),
+            phone: val('la-addr-phone'),
+            timeIn: val('la-addr-time-in'),
+            storedFboId: storedFbo ? storedFbo.value : ''
+        };
+    }
+
     function buildLaRoutingLabel(data) {
         if (data.source === 'airport') {
             var bits = [];
@@ -1783,6 +1834,13 @@ window.initReservationPlaces = function () {
             else if (data.airlineName) bits.push(data.airlineName);
             if (data.flightNumber) bits.push(data.flightNumber);
             return bits.join(' ').trim() || data.airportName || 'Airport';
+        }
+        if (data.source === 'fbo') {
+            var fboBits = [];
+            if (data.locationName) fboBits.push(data.locationName);
+            if (data.tailNumber) fboBits.push('Tail ' + data.tailNumber);
+            if (data.city) fboBits.push(data.city);
+            return fboBits.join(' ').trim() || data.street1 || 'FBO';
         }
         var bits = [];
         var head = data.locationName || data.street1;
@@ -1810,6 +1868,7 @@ window.initReservationPlaces = function () {
         }
         var parts = [];
         if (data.locationName) parts.push(data.locationName);
+        if (data.tailNumber) parts.push('Tail# ' + data.tailNumber);
         if (data.street1) parts.push(data.street1);
         if (data.street2) parts.push(data.street2);
         var cityLine = [data.city, data.state, data.zip].filter(Boolean).join(', ');
@@ -1844,18 +1903,24 @@ window.initReservationPlaces = function () {
         }
 
         var prefix = LA_ROUTING_PREFIX[type] || 'PU';
+        var source = payload.source || 'address';
+        var sourceLabels = { address: 'Address', airport: 'Airport', fbo: 'FBO' };
         var row = document.createElement('div');
         row.className = 'la-routing-stored-row';
         row.setAttribute('data-routing-type', type);
         row.setAttribute('data-submit-value', submitValue);
-        row.setAttribute('data-source', payload.source || 'address');
+        row.setAttribute('data-source', source);
         row.setAttribute('data-label', label);
         row.setAttribute('data-payload', JSON.stringify(payload));
 
         var main = document.createElement('span');
         main.className = 'la-routing-stored-main';
+        var sourceTag = document.createElement('span');
+        sourceTag.className = 'la-routing-source-tag is-' + source;
+        sourceTag.textContent = sourceLabels[source] || 'Address';
+        main.appendChild(sourceTag);
         main.appendChild(document.createTextNode(prefix + ': ' + label + ' '));
-        if (payload.source === 'airport') {
+        if (source === 'airport') {
             var unverified = document.createElement('span');
             unverified.className = 'la-routing-not-verified';
             unverified.textContent = 'Not verified';
@@ -2026,6 +2091,93 @@ window.initReservationPlaces = function () {
         return !!(data.airportCode || data.airportName || data.airlineCode || data.airlineName || data.flightNumber);
     }
 
+    function laFboFormHasData(data) {
+        data = data || getLaFboFormData();
+        return !!(data.locationName || data.street1 || data.city || data.tailNumber);
+    }
+
+    function normalizeLaState(state) {
+        var s = (state || '').trim();
+        if (!s) return '';
+        var upper = s.toUpperCase();
+        if (upper === 'TX' || upper === 'TEXAS') return 'Texas';
+        return s;
+    }
+
+    function applyLaFbo(fbo) {
+        fbo = fbo || {};
+        var set = function (id, value) {
+            var el = document.getElementById(id);
+            if (el) el.value = value || '';
+        };
+        set('la-fbo-name', fbo.name || '');
+        set('la-fbo-street1', fbo.street1 || '');
+        set('la-fbo-street2', fbo.street2 || '');
+        set('la-fbo-city', fbo.city || '');
+        set('la-fbo-state', normalizeLaState(fbo.state || ''));
+        set('la-fbo-zip', fbo.zip || '');
+        set('la-fbo-country', fbo.country || 'United States');
+        set('la-addr-phone', fbo.phone || '');
+        set('la-addr-notes', fbo.notes || '');
+        var stored = document.getElementById('la-stored-fbo');
+        if (stored) stored.value = fbo.id ? String(fbo.id) : '';
+    }
+
+    function clearLaFboForm() {
+        ['la-fbo-name', 'la-fbo-tail', 'la-fbo-street1', 'la-fbo-street2', 'la-fbo-city', 'la-fbo-zip', 'la-addr-notes', 'la-addr-phone'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        var state = document.getElementById('la-fbo-state');
+        if (state) state.value = '';
+        var country = document.getElementById('la-fbo-country');
+        if (country) country.value = 'United States';
+        var stored = document.getElementById('la-stored-fbo');
+        if (stored) stored.value = '';
+    }
+
+    function fillLaFboForm(data) {
+        if (!data) return;
+        applyLaFbo({
+            id: data.storedFboId || '',
+            name: data.locationName || '',
+            street1: data.street1 || '',
+            street2: data.street2 || '',
+            city: data.city || '',
+            state: data.state || '',
+            zip: data.zip || '',
+            country: data.country || 'United States',
+            phone: data.phone || '',
+            notes: data.notes || ''
+        });
+        var tail = document.getElementById('la-fbo-tail');
+        if (tail) tail.value = data.tailNumber || '';
+    }
+
+    function initLaFbos() {
+        var storedEl = document.getElementById('la-stored-fbo');
+        if (!storedEl) return;
+        storedEl.addEventListener('change', function () {
+            var opt = storedEl.options[storedEl.selectedIndex];
+            if (!opt || !opt.value) {
+                clearLaFboForm();
+                return;
+            }
+            applyLaFbo({
+                id: opt.value,
+                name: opt.getAttribute('data-name') || '',
+                street1: opt.getAttribute('data-street1') || '',
+                street2: opt.getAttribute('data-street2') || '',
+                city: opt.getAttribute('data-city') || '',
+                state: opt.getAttribute('data-state') || '',
+                zip: opt.getAttribute('data-zip') || '',
+                phone: opt.getAttribute('data-phone') || '',
+                notes: opt.getAttribute('data-notes') || '',
+                country: opt.getAttribute('data-country') || 'United States'
+            });
+        });
+    }
+
     function hasLaStoredRoutingType(type) {
         var list = document.getElementById('la-stored-routing-list');
         return !!(list && list.querySelector('.la-routing-stored-row[data-routing-type="' + type + '"]'));
@@ -2123,6 +2275,9 @@ window.initReservationPlaces = function () {
         if (payload.source === 'airport') {
             switchAddrTab('airport');
             fillLaAirportForm(payload);
+        } else if (payload.source === 'fbo') {
+            switchAddrTab('fbo');
+            fillLaFboForm(payload);
         } else {
             switchAddrTab('address');
             fillLaAddressForm(payload);
@@ -2169,6 +2324,14 @@ window.initReservationPlaces = function () {
             }
             label = buildLaRoutingLabel(data);
             submitValue = buildLaRoutingSubmitValue(data);
+        } else if (panel === 'fbo') {
+            data = getLaFboFormData();
+            if (!laFboFormHasData(data)) {
+                if (!options.silentEmpty) alert('Please select or enter an FBO before adding routing.');
+                return false;
+            }
+            label = buildLaRoutingLabel(data);
+            submitValue = buildLaRoutingSubmitValue(data);
         } else if (panel === 'address') {
             data = getLaAddressFormData();
             label = buildLaRoutingLabel(data);
@@ -2178,7 +2341,7 @@ window.initReservationPlaces = function () {
                 return false;
             }
         } else {
-            if (!options.silentEmpty) alert('Use Address or Airport tab to add routing.');
+            if (!options.silentEmpty) alert('Use Address, Airport, or FBO tab to add routing.');
             return false;
         }
 
@@ -2189,6 +2352,7 @@ window.initReservationPlaces = function () {
         appendLaStoredRoutingRow(type, label, submitValue, data);
         syncLaRoutingToFormFields(type, submitValue, data);
         if (panel === 'airport') clearLaAirportForm(type === 'pickup');
+        else if (panel === 'fbo') clearLaFboForm();
         else clearLaAddressForm();
         return true;
     }
@@ -2239,6 +2403,8 @@ window.initReservationPlaces = function () {
                 var panel = getActiveAddrPanel();
                 if (panel === 'airport') {
                     if (!laAirportFormHasData()) return;
+                } else if (panel === 'fbo') {
+                    if (!laFboFormHasData()) return;
                 } else if (panel === 'address') {
                     if (!laAddressFormHasData()) return;
                 } else {
@@ -3049,11 +3215,33 @@ window.initReservationPlaces = function () {
         }
     });
 
+    function initDateTimePickersOnClick() {
+        document.querySelectorAll('input[type="date"], input[type="time"]').forEach(function (el) {
+            if (el.getAttribute('data-picker-click') === '1' || el.disabled || el.readOnly) return;
+            el.setAttribute('data-picker-click', '1');
+            el.addEventListener('click', function () {
+                if (typeof el.showPicker !== 'function') return;
+                try {
+                    el.showPicker();
+                } catch (e) { /* browser may block if not user-activated / unsupported */ }
+            });
+            el.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                if (typeof el.showPicker !== 'function') return;
+                try {
+                    el.showPicker();
+                } catch (err) {}
+            });
+        });
+    }
+
     initRoutingRadios();
     initLaRoutingCreate();
     initAddrTypeTabs();
     initLaAirlines();
     initLaAirports();
+    initLaFbos();
+    initDateTimePickersOnClick();
     initLaRightColumn();
     initLaNotesSave();
 

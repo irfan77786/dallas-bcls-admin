@@ -6,6 +6,7 @@ use App\Jobs\CreateBookingDocs;
 use App\Services\BookingEmailPayloadBuilder;
 use App\Models\Airport;
 use App\Models\Airline;
+use App\Models\Fbo;
 use App\Models\Account;
 use App\Models\Booker;
 use App\Models\Booking;
@@ -403,6 +404,9 @@ class ReservationController extends Controller
         $airports = Schema::hasTable('airports')
             ? Airport::query()->orderBy('iata_code')->get()
             : collect();
+        $fbos = Schema::hasTable('fbos')
+            ? Fbo::query()->active()->orderBy('sort_order')->orderBy('name')->get()
+            : collect();
         $accounts = Account::query()
             ->with('billingContact')
             ->orderBy('company_name')
@@ -410,7 +414,7 @@ class ReservationController extends Controller
         $childSeatPricePerSeatUsd = self::CHILD_SEAT_PRICE_PER_SEAT_USD;
 
         return view($view, array_merge(
-            compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airlines', 'airports', 'accounts', 'childSeatPricePerSeatUsd', 'pageTitle'),
+            compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airlines', 'airports', 'fbos', 'accounts', 'childSeatPricePerSeatUsd', 'pageTitle'),
             $extraData
         ));
     }
