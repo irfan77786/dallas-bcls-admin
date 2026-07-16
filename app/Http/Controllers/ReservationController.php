@@ -635,8 +635,18 @@ class ReservationController extends Controller
         $forOthers = $request->boolean('booking_for_someone_else');
         $wantsFlightFields = $request->boolean('no_flight_info');
 
+        $draftBooking = null;
+        $draftBookingId = (int) ($validated['draft_booking_id'] ?? $request->input('draft_booking_id') ?? 0);
+        if ($draftBookingId > 0 && Schema::hasColumn('bookings', 'is_draft')) {
+            $draftBooking = Booking::query()
+                ->where('id', $draftBookingId)
+                ->where('is_draft', true)
+                ->where('draft_user_id', auth()->id())
+                ->first();
+        }
+
         try {
-            $booking = DB::transaction(function () use ($trip, $validated, $vehicle, $breakdown, $returnBreakdown, $totalPrice, $forOthers, $returnLeg, $wantsFlightFields, $childSeatFee, $childSeatType, $childSeatQty) {
+            $booking = DB::transaction(function () use ($trip, $validated, $vehicle, $breakdown, $returnBreakdown, $totalPrice, $forOthers, $returnLeg, $wantsFlightFields, $childSeatFee, $childSeatType, $childSeatQty, $draftBooking) {
                 $booker = null;
                 if ($forOthers) {
                     $booker = Booker::create([
@@ -665,16 +675,6 @@ class ReservationController extends Controller
                 $accountSnapshot = $this->selectedAccountSnapshot($validated);
                 $stopLocations = $this->cleanStopLocations($validated['stop_locations'] ?? []);
                 $routingInformation = $this->cleanRoutingInformation($validated['routing_information'] ?? []);
-
-                $draftBooking = null;
-                $draftBookingId = (int) ($validated['draft_booking_id'] ?? $request->input('draft_booking_id') ?? 0);
-                if ($draftBookingId > 0 && Schema::hasColumn('bookings', 'is_draft')) {
-                    $draftBooking = Booking::query()
-                        ->where('id', $draftBookingId)
-                        ->where('is_draft', true)
-                        ->where('draft_user_id', auth()->id())
-                        ->first();
-                }
 
                 $bookingPayload = [
                     'booker_id' => $booker?->id,
