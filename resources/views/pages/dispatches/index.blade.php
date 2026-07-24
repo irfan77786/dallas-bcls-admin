@@ -833,7 +833,6 @@
             'date_from' => $dateFromValue,
             'date_to' => $dateToValue,
             'date_mode' => $dateMode,
-            'all' => $include['all'] ? 1 : 0,
             'new_live' => $include['new_live'] ? 1 : 0,
             'in_house' => $include['in_house'] ? 1 : 0,
             'farm_out' => $include['farm_out'] ? 1 : 0,
@@ -859,7 +858,6 @@
                     'date_mode' => $prevDateMode,
                     'date_from' => $prevDateFrom,
                     'date_to' => $prevDateTo,
-                    'all' => 0,
                 ])) }}" title="Previous" aria-label="Previous">
                     <i class="bi bi-caret-left-fill"></i>
                 </a>
@@ -876,7 +874,6 @@
                     'date_mode' => $nextDateMode,
                     'date_from' => $nextDateFrom,
                     'date_to' => $nextDateTo,
-                    'all' => 0,
                 ])) }}" title="Next" aria-label="Next">
                     <i class="bi bi-caret-right-fill"></i>
                 </a>
@@ -932,7 +929,6 @@
 
             <div class="disp-include">
                 <span class="disp-include-label">Include:</span>
-                <label><input type="checkbox" name="all" value="1" data-disp-all @checked($include['all'])> All</label>
                 <label><input type="checkbox" name="new_live" value="1" data-disp-type @checked($include['new_live'])> New Live</label>
                 <label><input type="checkbox" name="in_house" value="1" data-disp-type @checked($include['in_house'])> In-House</label>
                 <label><input type="checkbox" name="farm_out" value="1" data-disp-type @checked($include['farm_out'])> Farm-Out</label>
@@ -1027,14 +1023,14 @@
                 </div>
                 <div class="disp-adv-actions">
                     <button type="submit" class="disp-btn-search">Search</button>
-                    <a href="{{ route('dispatches.index', ['all' => 1]) }}" class="disp-btn-clear">Clear All</a>
+                    <a href="{{ route('dispatches.index') }}" class="disp-btn-clear">Clear All</a>
                 </div>
             </div>
         </div>
     </form>
 
     @if($bookings->isEmpty())
-        <div class="disp-empty">No dispatches found{{ $dateMode === 'all' ? '' : ' for '.$dateDisplay }}.</div>
+        <div class="disp-empty">No dispatches found for {{ $dateDisplay }}.</div>
     @else
         <div class="disp-grid-wrap">
             <table class="disp-grid" id="disp-grid">
@@ -1254,6 +1250,7 @@
 @endsection
 
 @push('script')
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 (function () {
     var form = document.getElementById('disp-filter-form');
@@ -1427,11 +1424,8 @@
 
     function applyDatePreset(mode, extra) {
         if (!form) return;
+        if (mode === 'all') mode = 'today';
         if (dateModeInput) dateModeInput.value = mode;
-        if (mode !== 'all') {
-            var allCb = form.querySelector('[data-disp-all]');
-            if (allCb) allCb.checked = false;
-        }
         if (extra) {
             if (extra.date && dateInput) dateInput.value = extra.date;
             if (extra.from && dateFromInput) dateFromInput.value = extra.from;
@@ -1558,34 +1552,10 @@
     }
 
     if (form) {
-        var allCb = form.querySelector('[data-disp-all]');
         var typeCbs = form.querySelectorAll('[data-disp-type]');
-
-        if (allCb) {
-            allCb.addEventListener('change', function () {
-                if (allCb.checked) {
-                    typeCbs.forEach(function (cb) { cb.checked = false; });
-                    if (dateModeInput) dateModeInput.value = 'all';
-                } else if (dateModeInput && dateModeInput.value === 'all') {
-                    dateModeInput.value = 'today';
-                }
-                form.submit();
-            });
-        }
 
         typeCbs.forEach(function (cb) {
             cb.addEventListener('change', function () {
-                if (cb.checked && allCb) {
-                    allCb.checked = false;
-                    if (dateModeInput && dateModeInput.value === 'all') {
-                        dateModeInput.value = 'today';
-                    }
-                }
-                var anyType = Array.prototype.some.call(typeCbs, function (el) { return el.checked; });
-                if (!anyType && allCb) {
-                    allCb.checked = true;
-                    if (dateModeInput) dateModeInput.value = 'all';
-                }
                 form.submit();
             });
         });
@@ -1746,26 +1716,51 @@
                 }
                 if (action === 'delete') {
                     var conf = row.getAttribute('data-conf') || id;
-                    if (!window.confirm('Delete reservation #' + conf + '? This cannot be undone.')) return;
                     var destroyUrl = row.getAttribute('data-destroy-url');
                     if (!destroyUrl) return;
-                    fetch(destroyUrl, {
-                        method: 'DELETE',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken(),
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    })
-                    .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
-                    .then(function (result) {
-                        if (!result.ok) throw new Error((result.data && result.data.message) || 'Delete failed');
-                        var detail = document.querySelector('.disp-detail-row[data-detail-for="' + id + '"]');
-                        if (detail) detail.remove();
-                        row.remove();
-                    })
-                    .catch(function (err) {
-                        alert(err.message || 'Delete failed');
+
+                    Swal.fire({
+                        title: 'Delete reservation?',
+                        text: 'Delete reservation #' + conf + '? This cannot be undone.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, delete',
+                        cancelButtonText: 'Cancel',
+                        confirmButtonColor: '#c75c5c'
+                    }).then(function (result) {
+                        if (!result.isConfirmed) return;
+
+                        fetch(destroyUrl, {
+                            method: 'DELETE',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken(),
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        })
+                        .then(function (res) {
+                            return res.json().then(function (data) {
+                                return { ok: res.ok, data: data };
+                            });
+                        })
+                        .then(function (result) {
+                            if (!result.ok) {
+                                throw new Error((result.data && result.data.message) || 'Delete failed');
+                            }
+                            var detail = document.querySelector('.disp-detail-row[data-detail-for="' + id + '"]');
+                            if (detail) detail.remove();
+                            row.remove();
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Deleted',
+                                text: (result.data && result.data.message) || 'Reservation deleted.',
+                                timer: 1500,
+                                showConfirmButton: false
+                            });
+                        })
+                        .catch(function (err) {
+                            Swal.fire('Error', err.message || 'Delete failed', 'error');
+                        });
                     });
                 }
             });

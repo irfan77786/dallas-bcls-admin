@@ -10,6 +10,17 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.8.0/build/css/intlTelInput.css">
 @if(!empty($isEmbed))
 <style>
+    html.la-embed-pending .header-top,
+    html.la-embed-pending .header-top-nav,
+    html.la-embed-pending .header-main-nav,
+    html.la-embed-pending #header-main-nav,
+    html.la-embed-pending .header-nav-toggle,
+    html.la-embed-pending .footer,
+    html.la-embed-pending .chat,
+    html.la-embed-pending #chat,
+    html.la-embed-pending .modalmenu,
+    body.la-embed-mode .header-top,
+    body.la-embed-mode .header-top-nav,
     body.la-embed-mode .header,
     body.la-embed-mode .header-main-nav,
     body.la-embed-mode #header-main-nav,
@@ -20,16 +31,22 @@
     body.la-embed-mode .modalmenu {
         display: none !important;
     }
+    html.la-embed-pending .page-wrap,
+    html.la-embed-pending .main-content,
     body.la-embed-mode .page-wrap,
     body.la-embed-mode .main-content {
         margin: 0 !important;
         padding: 0 !important;
     }
+    html.la-embed-pending .wrapper,
     body.la-embed-mode .wrapper {
         padding-top: 0 !important;
+        min-height: 0 !important;
+    }
+    body.la-embed-mode .la-reservation-page {
+        margin: 0 !important;
     }
 </style>
-<script>document.documentElement.classList.add('la-embed-pending');</script>
 @endif
 <style>
     .la-reservation-page {

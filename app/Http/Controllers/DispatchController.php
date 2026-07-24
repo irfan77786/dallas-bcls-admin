@@ -24,50 +24,37 @@ class DispatchController extends Controller
             }
         }
 
-        $filterSubmitted = $request->query->has('all')
-            || $request->query->has('new_live')
+        $filterSubmitted = $request->query->has('new_live')
             || $request->query->has('in_house')
             || $request->query->has('farm_out')
             || $request->query->has('settled')
             || $request->query->has('farm_in')
             || $request->query->has('quotes')
             || $request->query->has('q')
-            || $request->query->has('adv');
+            || $request->query->has('adv')
+            || $request->query->has('date_mode')
+            || $request->query->has('date');
 
         $include = [
-            'all' => $filterSubmitted ? $request->boolean('all') : true,
-            'new_live' => $filterSubmitted ? $request->boolean('new_live') : false,
-            'in_house' => $filterSubmitted ? $request->boolean('in_house') : false,
-            'farm_out' => $filterSubmitted ? $request->boolean('farm_out') : false,
+            'new_live' => $filterSubmitted ? $request->boolean('new_live') : true,
+            'in_house' => $filterSubmitted ? $request->boolean('in_house') : true,
+            'farm_out' => $filterSubmitted ? $request->boolean('farm_out') : true,
             'settled' => $filterSubmitted ? $request->boolean('settled') : false,
-            'farm_in' => $filterSubmitted ? $request->boolean('farm_in') : false,
+            'farm_in' => $filterSubmitted ? $request->boolean('farm_in') : true,
             'quotes' => $filterSubmitted ? $request->boolean('quotes') : false,
         ];
-
-        // If nothing specific is selected, treat as All.
-        if (! $include['all']
-            && ! $include['new_live']
-            && ! $include['in_house']
-            && ! $include['farm_out']
-            && ! $include['settled']
-            && ! $include['farm_in']
-            && ! $include['quotes']
-        ) {
-            $include['all'] = true;
-        }
 
         $search = trim((string) $request->input('q', ''));
 
         $dateMode = strtolower(trim((string) $request->input('date_mode', '')));
-        if ($dateMode === '' && ! $request->query->has('date') && ! $request->query->has('date_from')) {
-            // First load with All include => all dates; otherwise today.
-            $dateMode = $include['all'] ? 'all' : 'today';
-        }
-        if ($dateMode === '') {
-            $dateMode = 'specific';
+        if ($dateMode === '' || $dateMode === 'all') {
+            $dateMode = 'today';
         }
 
         $dateFilter = $this->resolveDateFilter($request, $dateMode, $date);
+        if ($dateFilter['mode'] === 'all') {
+            $dateFilter = $this->resolveDateFilter($request, 'today', $date);
+        }
         $dateMode = $dateFilter['mode'];
         $dateFrom = $dateFilter['from'];
         $dateTo = $dateFilter['to'];
@@ -94,7 +81,7 @@ class DispatchController extends Controller
             ->notDraft()
             ->with(['vehicle', 'passengers', 'accountSnapshot', 'returnService']);
 
-        if ($dateMode !== 'all' && $dateFrom && $dateTo) {
+        if ($dateFrom && $dateTo) {
             $query->whereDate('pickup_date', '>=', $dateFrom->toDateString())
                 ->whereDate('pickup_date', '<=', $dateTo->toDateString());
         }
@@ -200,7 +187,7 @@ class DispatchController extends Controller
             return $this->mapDispatchRow($booking);
         })->values();
 
-        if (! $include['all'] && ! $include['quotes']) {
+        if (! $include['quotes']) {
             $bookings = $bookings->reject(fn ($row) => $row['status_key'] === 'quote')->values();
         }
 
