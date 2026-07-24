@@ -16,6 +16,7 @@ use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ReservationController;
+use App\Http\Controllers\DispatchController;
 use App\Http\Controllers\AccountController;
 use Illuminate\Support\Facades\Artisan; 
 
@@ -116,11 +117,15 @@ Route::group(['middleware' => 'auth'], function () {
       
     Route::get('bookings', [BookingController::class, 'index'])->name('bookings.index');
     Route::get('/bookings/{booking}/edit', [ReservationController::class, 'edit'])->name('bookings.edit');
+    Route::get('/bookings/{booking}/edit-la', [ReservationController::class, 'editLa'])->name('bookings.edit-la');
     Route::match(['put', 'patch'], '/bookings/{booking}', [ReservationController::class, 'update'])->name('bookings.update');
     Route::get('/bookings/{id}', [BookingController::class, 'show'])->name('bookings.show');
     Route::post('/bookings/{id}/duplicate', [BookingController::class, 'duplicate'])->name('bookings.duplicate');
     Route::delete('/bookings/{id}', [BookingController::class, 'destroy'])->name('bookings.destroy');
     Route::post('/bookings/{id}/send-composer-emails', [BookingController::class, 'sendComposerEmails'])->name('bookings.send-composer-emails');
+
+    Route::get('/dispatches', [DispatchController::class, 'index'])->name('dispatches.index');
+    Route::patch('/dispatches/{booking}', [DispatchController::class, 'update'])->name('dispatches.update');
 
     // // User Management (only accessible to those with 'manage_user' permission)
     // Route::group(['middleware' => 'can:manage_user'], function () {

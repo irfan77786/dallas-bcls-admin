@@ -139,7 +139,7 @@ public function show($id)
     return view('pages.bookings.show', compact('booking', 'travelInfo'));
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $booking = Booking::with(['passengers.flightDetail', 'booker', 'returnService', 'breakdown', 'payments'])->findOrFail($id);
 
@@ -168,6 +168,10 @@ public function show($id)
                 \App\Models\Booker::where('id', $bookerId)->delete();
             }
         });
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['ok' => true, 'message' => 'Reservation deleted successfully.']);
+        }
 
         return redirect()
             ->route('bookings.index')

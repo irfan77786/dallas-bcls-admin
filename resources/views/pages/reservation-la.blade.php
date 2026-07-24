@@ -8,6 +8,29 @@
 @endif
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.8.0/build/css/intlTelInput.css">
+@if(!empty($isEmbed))
+<style>
+    body.la-embed-mode .header,
+    body.la-embed-mode .header-main-nav,
+    body.la-embed-mode #header-main-nav,
+    body.la-embed-mode .header-nav-toggle,
+    body.la-embed-mode .footer,
+    body.la-embed-mode .chat,
+    body.la-embed-mode #chat,
+    body.la-embed-mode .modalmenu {
+        display: none !important;
+    }
+    body.la-embed-mode .page-wrap,
+    body.la-embed-mode .main-content {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    body.la-embed-mode .wrapper {
+        padding-top: 0 !important;
+    }
+</style>
+<script>document.documentElement.classList.add('la-embed-pending');</script>
+@endif
 <style>
     .la-reservation-page {
         font-family: Tahoma, Arial, sans-serif;
@@ -743,7 +766,11 @@
     $formDefaults = $formDefaults ?? [];
     $formValue = fn ($key, $default = null) => old($key, $formDefaults[$key] ?? $default);
     $formBool = fn ($key, $default = false) => in_array(old($key, $formDefaults[$key] ?? $default), [true, 1, '1', 'true', 'on', 'yes'], true);
-    $draftBookingId = isset($draftBooking) && $draftBooking ? $draftBooking->id : null;
+    $isEditMode = !empty($isEditMode);
+    $isEmbed = !empty($isEmbed);
+    $formAction = $formAction ?? route('reservation.store');
+    $formMethod = strtoupper($formMethod ?? 'POST');
+    $draftBookingId = (!$isEditMode && isset($draftBooking) && $draftBooking) ? $draftBooking->id : null;
     $pickupFlightOld = $formValue('pickup_flight_details');
     $meetOld = $formValue('meet_option');
     $serviceOptionOld = $formValue('service_option', 'point_to_point');
@@ -791,8 +818,14 @@
         </div>
     @endif
 
-    <form method="post" action="{{ route('reservation.store') }}" id="reservation-form" novalidate>
+    <form method="post" action="{{ $formAction }}" id="reservation-form" novalidate>
         @csrf
+        @if($formMethod !== 'POST')
+            @method($formMethod)
+        @endif
+        @if($isEmbed)
+            <input type="hidden" name="_embed" value="1">
+        @endif
         <input type="hidden" name="is_airport" id="is_airport" value="{{ $formBool('is_airport') ? '1' : '0' }}">
         <input type="hidden" name="booking_for_someone_else" id="booking_for_someone_else" value="{{ $formBool('booking_for_someone_else') ? '1' : '0' }}">
         <input type="hidden" name="return_service" id="return_service" value="{{ $formBool('return_service') ? '1' : '0' }}">
@@ -804,7 +837,9 @@
 
         <div class="la-topbar">
             <div class="la-warning-banner" style="flex:1;">
-                @if(!empty($draftBookingId))
+                @if($isEditMode)
+                    Editing reservation #{{ $nextConfirmationNumber ?? ($editingBooking->booking_id ?? '') }}. Update fields and save to apply changes.
+                @elseif(!empty($draftBookingId))
                     Draft booking #{{ $nextConfirmationNumber ?? $draftBookingId }} is open. Notes, routing, and airport details auto-save to this booking. Complete and save to finalize.
                 @else
                     ATTENTION! This reservation was created but has not been saved. You must save it before leaving this screen.
@@ -950,7 +985,7 @@
                                 </div>
                                 <div class="la-field" style="grid-column: span 6;">
                                     <label>PO/Client Ref #</label>
-                                    <input type="text" tabindex="-1">
+                                    <input type="text" name="po_client_ref" id="po_client_ref" value="{{ $formValue('po_client_ref') }}" maxlength="100" autocomplete="off">
                                 </div>
                                 <div class="la-field" style="grid-column: span 6;">
                                     <label>Booker IATA</label>
@@ -1469,10 +1504,13 @@ window.initReservationPlaces = function () {
 
     var token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var reservationStripeEnabled = @json(!empty($stripeEnabled));
-    var storeUrl = @json(route('reservation.store'));
+    var isEditMode = @json(!empty($isEditMode));
+    var isEmbed = @json(!empty($isEmbed));
+    var editingBookingId = @json(isset($editingBooking) ? $editingBooking->id : null);
+    var storeUrl = @json($isEditMode ? ($formAction ?? route('reservation.store')) : route('reservation.store'));
     var routingDraftUrl = @json(route('reservation.routing-draft'));
     var laDraftSaveUrl = @json(route('reservation.la-draft'));
-    var laDraftBookingId = @json($draftBookingId);
+    var laDraftBookingId = @json($isEditMode ? null : $draftBookingId);
     var laRoutingDraft = @json($routingDraft ?? []);
     var laRoutingDraftTimer = null;
     var laNotesDraftTimer = null;
@@ -2724,6 +2762,7 @@ window.initReservationPlaces = function () {
             var meetOption = document.getElementById('meet-option');
             var pu = document.getElementById('pickup_location');
             var dof = document.getElementById('dropoff_location');
+            var poRef = document.getElementById('po_client_ref');
 
             fetch(laDraftSaveUrl, {
                 method: 'POST',
@@ -2750,6 +2789,7 @@ window.initReservationPlaces = function () {
                     pickup_time: pickupTime && pickupTime.value ? pickupTime.value : null,
                     pickup_location: pu ? pu.value : null,
                     dropoff_location: dof ? dof.value : null,
+                    po_client_ref: poRef ? poRef.value : null,
                     vehicle_id: vehicleId && vehicleId.value ? parseInt(vehicleId.value, 10) : null,
                     service_option: serviceOpt ? serviceOpt.value : null,
                     pax_count: pax && pax.value ? parseInt(pax.value, 10) : null,
@@ -3352,6 +3392,18 @@ window.initReservationPlaces = function () {
         if (typeof syncLaNotesForSubmit === 'function') syncLaNotesForSubmit();
         if (typeof saveLaNotesDraft === 'function') saveLaNotesDraft();
     });
+
+    if (isEmbed) {
+        document.body.classList.add('la-embed-mode');
+    }
+    @if(!empty($isEmbed) && request()->boolean('saved'))
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+            type: 'dispatch-edit-saved',
+            bookingId: editingBookingId
+        }, '*');
+    }
+    @endif
 })();
 </script>
 @endpush

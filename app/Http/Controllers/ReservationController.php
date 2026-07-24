@@ -163,6 +163,7 @@ class ReservationController extends Controller
             'luggage_count' => ['nullable', 'integer', 'min:0', 'max:99'],
             'account_id' => ['nullable', 'integer'],
             'custom_total_price' => ['nullable', 'numeric', 'min:0'],
+            'po_client_ref' => ['nullable', 'string', 'max:100'],
             'pickup_flight_details' => ['nullable', 'string', 'max:255'],
             'flight_number' => ['nullable', 'string', 'max:50'],
             'meet_option' => ['nullable', 'string', 'max:50'],
@@ -180,6 +181,9 @@ class ReservationController extends Controller
 
         $updates = array_filter([
             'note' => $note,
+            'po_client_ref' => array_key_exists('po_client_ref', $validated)
+                ? (filled($validated['po_client_ref']) ? trim((string) $validated['po_client_ref']) : null)
+                : null,
             'pickup_date' => $validated['pickup_date'] ?? null,
             'pickup_time' => $validated['pickup_time'] ?? null,
             'pickup_location' => $validated['pickup_location'] ?? null,
@@ -192,6 +196,11 @@ class ReservationController extends Controller
                 ? round((float) $validated['custom_total_price'], 2)
                 : null,
         ], fn ($v) => $v !== null);
+
+        // Allow clearing PO/Client Ref on draft save when explicitly sent empty.
+        if (array_key_exists('po_client_ref', $validated) && ! filled($validated['po_client_ref'])) {
+            $updates['po_client_ref'] = null;
+        }
 
         if ($updates) {
             $draft->fill($updates);
@@ -276,6 +285,7 @@ class ReservationController extends Controller
 
         return [
             'note' => $booking->note,
+            'po_client_ref' => $booking->po_client_ref,
             'pickup_date' => $hasRealTrip && $booking->pickup_date
                 ? (\Carbon\Carbon::parse($booking->pickup_date)->format('Y-m-d'))
                 : null,
@@ -384,6 +394,34 @@ class ReservationController extends Controller
             'formMethod' => 'PUT',
             'formDefaults' => $this->reservationFormDefaults($booking),
             'bookingPaymentStatus' => $booking->payment_status,
+        ]);
+    }
+
+    public function editLa(Booking $booking, Request $request)
+    {
+        $booking->load([
+            'passengers.flightDetail',
+            'booker',
+            'returnService',
+            'breakdown',
+            'accountSnapshot',
+        ]);
+
+        $routingDraft = is_array($booking->routing_information ?? null)
+            ? $booking->routing_information
+            : [];
+
+        return $this->reservationView('pages.reservation-la', 'Edit Reservation', [
+            'isEditMode' => true,
+            'isEmbed' => $request->boolean('embed'),
+            'formAction' => route('bookings.update', $booking),
+            'formMethod' => 'PUT',
+            'formDefaults' => $this->reservationFormDefaults($booking),
+            'routingDraft' => $routingDraft,
+            'draftBooking' => null,
+            'nextConfirmationNumber' => $booking->booking_id,
+            'bookingPaymentStatus' => $booking->payment_status,
+            'editingBooking' => $booking,
         ]);
     }
 
@@ -690,6 +728,7 @@ class ReservationController extends Controller
                     'payment_status' => 'Pending',
                     'return_service_id' => $returnServiceId,
                     'note' => $validated['note'] ?? null,
+                    'po_client_ref' => filled($validated['po_client_ref'] ?? null) ? trim((string) $validated['po_client_ref']) : null,
                     'child_seat_type' => $childSeatFee > 0 ? $childSeatType : null,
                     'child_seat_quantity' => $childSeatFee > 0 ? (int) $childSeatQty : null,
                     'child_seat_fee' => $childSeatFee > 0 ? $childSeatFee : null,
@@ -1066,6 +1105,7 @@ class ReservationController extends Controller
                     'total_price' => $totalPrice,
                     'return_service_id' => $returnServiceId,
                     'note' => $validated['note'] ?? null,
+                    'po_client_ref' => filled($validated['po_client_ref'] ?? null) ? trim((string) $validated['po_client_ref']) : null,
                     'child_seat_type' => $childSeatFee > 0 ? $childSeatType : null,
                     'child_seat_quantity' => $childSeatFee > 0 ? (int) $childSeatQty : null,
                     'child_seat_fee' => $childSeatFee > 0 ? $childSeatFee : null,
@@ -1279,6 +1319,12 @@ class ReservationController extends Controller
             $message .= ' Booking price was updated in the system only. Stripe authorization was not changed.';
         } elseif ($hadLockedPayment && round($originalTotalPrice, 2) !== round($totalPrice, 2)) {
             $message .= ' Existing paid payment records were not changed.';
+        }
+
+        if ($request->boolean('embed') || $request->input('_embed')) {
+            return redirect()
+                ->route('bookings.edit-la', ['booking' => $booking, 'embed' => 1, 'saved' => 1])
+                ->with('success', $message);
         }
 
         return redirect()
@@ -1556,6 +1602,7 @@ class ReservationController extends Controller
             'return_pickup_date' => [Rule::requiredIf(fn () => $request->boolean('return_service') && $request->input('service_type') === 'pointToPoint'), 'nullable', 'date_format:Y-m-d'],
             'return_pickup_time' => [Rule::requiredIf(fn () => $request->boolean('return_service') && $request->input('service_type') === 'pointToPoint'), 'nullable', 'date_format:H:i'],
             'note' => ['nullable', 'string', 'max:4000'],
+            'po_client_ref' => ['nullable', 'string', 'max:100'],
             'child_seat_required' => ['nullable', 'boolean'],
             'child_seat_type' => [
                 Rule::requiredIf(fn () => $request->boolean('child_seat_required')),
@@ -1629,7 +1676,9 @@ class ReservationController extends Controller
             'dropoff_location' => $booking->dropoff_location,
             'stop_locations' => array_values(array_filter((array) ($booking->stop_locations ?? []), fn ($v) => is_string($v) && trim($v) !== '')),
             'routing_information' => is_array($booking->routing_information ?? null) ? $booking->routing_information : [],
-            'pickup_date' => $booking->pickup_date,
+            'pickup_date' => $booking->pickup_date
+                ? \Carbon\Carbon::parse($booking->pickup_date)->format('Y-m-d')
+                : null,
             'pickup_time' => substr((string) $booking->pickup_time, 0, 5),
             'return_service' => (bool) $returnService,
             'return_pickup_date' => $returnService?->pickup_date,
@@ -1639,6 +1688,7 @@ class ReservationController extends Controller
             'flight_number' => $flight?->flight_number,
             'meet_option' => $flight?->meet_option,
             'note' => $booking->note,
+            'po_client_ref' => $booking->po_client_ref,
             'child_seat_required' => filled($booking->child_seat_type) && (int) ($booking->child_seat_quantity ?? 0) > 0,
             'child_seat_type' => $booking->child_seat_type,
             'child_seat_quantity' => $booking->child_seat_quantity,

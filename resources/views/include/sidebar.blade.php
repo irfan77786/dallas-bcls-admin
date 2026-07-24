@@ -56,6 +56,14 @@
                     </a>
                 </div>
 
+                <!-- Dispatches -->
+                <div class="nav-item {{ $segment1 === 'dispatches' ? 'active' : '' }}">
+                    <a href="{{ route('dispatches.index') }}">
+                        <i class="ik ik-activity"></i>
+                        <span>{{ __('Dispatches') }}</span>
+                    </a>
+                </div>
+
                 <!-- Manage Drivers -->
                 <!--<div class="nav-item {{ ($segment1 == 'manage-drivers') ? 'active' : '' }}">-->
                 <!--    <a href="#">-->

@@ -19,6 +19,10 @@
         <i class="ik ik-file-text"></i>
         <span>{{ __('New Reservation ') }}</span>
     </a>
+    <a href="{{ route('dispatches.index') }}" class="header-nav-item {{ $segment1 === 'dispatches' ? 'active' : '' }}">
+        <i class="ik ik-activity"></i>
+        <span>{{ __('Dispatches') }}</span>
+    </a>
     <a href="{{ route('accounts.index') }}" class="header-nav-item {{ $segment1 === 'accounts' ? 'active' : '' }}">
         <i class="ik ik-briefcase"></i>
         <span>{{ __('Accounts') }}</span>
