@@ -308,6 +308,35 @@
             default => 'booking-status-default',
         };
     };
+    $bookingPaymentLinkEmail = function ($booking) {
+        $passengerEmail = optional($booking->passengers->first())->email;
+        if (filled($passengerEmail)) {
+            return trim((string) $passengerEmail);
+        }
+        $bookerEmail = optional($booking->booker)->email;
+        if (filled($bookerEmail)) {
+            return trim((string) $bookerEmail);
+        }
+
+        return '';
+    };
+    $bookingCustomerName = function ($booking) {
+        $p = $booking->passengers->first();
+        if ($p) {
+            return trim($p->first_name . ' ' . $p->last_name);
+        }
+        if ($booking->booker) {
+            return trim(($booking->booker->first_name ?? '') . ' ' . ($booking->booker->last_name ?? ''));
+        }
+
+        return '';
+    };
+    $canSendPaymentLink = function ($booking) {
+        $status = strtolower(trim((string) $booking->payment_status));
+
+        return ! in_array($status, ['paid', 'authorized'], true)
+            && (float) $booking->total_price >= 0.5;
+    };
     $showingFrom = $bookings->count() ? $bookings->firstItem() : 0;
     $showingTo = $bookings->count() ? $bookings->lastItem() : 0;
     $activeFilterCount = collect([
@@ -520,6 +549,17 @@
                                         <a href="{{ route('bookings.edit', $booking->id) }}" title="{{ __('Edit') }}">
                                             <i class="ik ik-edit-2 f-16 text-primary"></i>
                                         </a>
+                                        <a href="#"
+                                           class="js-send-payment-link {{ $canSendPaymentLink($booking) ? '' : 'is-disabled' }}"
+                                           title="{{ $canSendPaymentLink($booking) ? __('Send payment link') : __('Payment link unavailable') }}"
+                                           data-booking-id="{{ $booking->id }}"
+                                           data-public-id="{{ $booking->booking_id ?: $booking->id }}"
+                                           data-email="{{ $bookingPaymentLinkEmail($booking) }}"
+                                           data-customer-name="{{ $bookingCustomerName($booking) }}"
+                                           data-amount="{{ number_format((float) $booking->total_price, 2, '.', '') }}"
+                                           data-status="{{ $booking->payment_status ?: 'Unknown' }}">
+                                            <i class="ik ik-credit-card f-16"></i>
+                                        </a>
                                         {{-- Temporarily hide duplicate action
                                         <form method="POST" action="{{ route('bookings.duplicate', $booking->id) }}" onsubmit="return confirm(@json(__('Duplicate this reservation?')));" class="booking-delete-form m-0">
                                             @csrf
@@ -627,6 +667,17 @@
                                 <a href="{{ route('bookings.edit', $booking->id) }}" title="{{ __('Edit') }}">
                                     <i class="ik ik-edit-2 f-16 text-primary"></i>
                                 </a>
+                                <a href="#"
+                                   class="js-send-payment-link {{ $canSendPaymentLink($booking) ? '' : 'is-disabled' }}"
+                                   title="{{ $canSendPaymentLink($booking) ? __('Send payment link') : __('Payment link unavailable') }}"
+                                   data-booking-id="{{ $booking->id }}"
+                                   data-public-id="{{ $booking->booking_id ?: $booking->id }}"
+                                   data-email="{{ $bookingPaymentLinkEmail($booking) }}"
+                                   data-customer-name="{{ $bookingCustomerName($booking) }}"
+                                   data-amount="{{ number_format((float) $booking->total_price, 2, '.', '') }}"
+                                   data-status="{{ $booking->payment_status ?: 'Unknown' }}">
+                                    <i class="ik ik-credit-card f-16"></i>
+                                </a>
                                 {{-- Temporarily hide duplicate action
                                 <form method="POST" action="{{ route('bookings.duplicate', $booking->id) }}" onsubmit="return confirm(@json(__('Duplicate this reservation?')));" class="booking-delete-form m-0">
                                     @csrf
@@ -661,6 +712,8 @@
         </div>
     </div>
 </div>
+
+@include('pages.bookings.partials.payment-link-modal')
 @endsection
 
 @push('script')

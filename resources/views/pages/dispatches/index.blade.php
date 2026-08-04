@@ -21,7 +21,7 @@
         background: #f3f4f6;
         border: 1px solid #d1d5db;
         border-bottom: 0;
-        font-size: 12px;
+        font-size: 15px;
         color: #222;
     }
 
@@ -30,7 +30,7 @@
         height: 26px;
         border: 1px solid #9ca3af;
         padding: 0 6px;
-        font-size: 12px;
+        font-size: 15px;
         text-align: center;
         background: #fff;
         cursor: pointer;
@@ -78,7 +78,7 @@
         background: #fff;
         border: 1px solid #9ca3af;
         box-shadow: 0 4px 14px rgba(0,0,0,.18);
-        font-size: 12px;
+        font-size: 15px;
     }
 
     .disp-date-menu[hidden] { display: none !important; }
@@ -134,8 +134,8 @@
     }
 
     .disp-cal-title {
-        font-weight: 700;
-        font-size: 12px;
+        font-weight: 500;
+        font-size: 15px;
         margin-bottom: 6px;
     }
 
@@ -148,7 +148,7 @@
 
     .disp-cal-nav select {
         height: 24px;
-        font-size: 11px;
+        font-size: 14px;
         border: 1px solid #9ca3af;
         background: #fff;
     }
@@ -167,14 +167,14 @@
         width: 100%;
         border-collapse: collapse;
         background: #fff;
-        font-size: 11px;
+        font-size: 14px;
         table-layout: fixed;
     }
 
     .disp-cal-grid th {
         background: #f3f4f6;
         padding: 3px 0;
-        font-weight: 600;
+        font-weight: 500;
         text-align: center;
     }
 
@@ -199,7 +199,7 @@
         background: #fff59d;
         outline: 2px solid #f4c430;
         outline-offset: -2px;
-        font-weight: 700;
+        font-weight: 500;
     }
 
     .disp-date-range-actions {
@@ -214,8 +214,8 @@
         border: 1px solid #c45c14;
         background: #e67e22;
         color: #fff;
-        font-weight: 700;
-        font-size: 12px;
+        font-weight: 500;
+        font-size: 15px;
         cursor: pointer;
     }
 
@@ -227,7 +227,7 @@
     }
 
     .disp-include-label {
-        font-weight: 700;
+        font-weight: 500;
         margin-right: 0.15rem;
     }
 
@@ -258,7 +258,7 @@
         height: 26px;
         border: 1px solid #9ca3af;
         padding: 0 8px;
-        font-size: 12px;
+        font-size: 15px;
         background: #fff;
     }
 
@@ -268,8 +268,8 @@
         border: 1px solid #b91c1c;
         background: #dc2626;
         color: #fff;
-        font-size: 11px;
-        font-weight: 700;
+        font-size: 14px;
+        font-weight: 500;
         letter-spacing: 0.03em;
         cursor: pointer;
     }
@@ -284,10 +284,10 @@
         gap: 4px;
         color: #c45c14;
         text-decoration: none;
-        font-size: 12px;
+        font-size: 15px;
         white-space: nowrap;
         cursor: pointer;
-        font-weight: 600;
+        font-weight: 500;
     }
 
     .disp-advanced:hover {
@@ -296,7 +296,7 @@
     }
 
     .disp-advanced .disp-adv-caret {
-        font-size: 11px;
+        font-size: 14px;
         transition: transform 0.15s ease;
     }
 
@@ -339,8 +339,8 @@
 
     .disp-adv-field label {
         display: block;
-        font-size: 11px;
-        font-weight: 600;
+        font-size: 14px;
+        font-weight: 500;
         color: #333;
         margin-bottom: 3px;
     }
@@ -351,13 +351,13 @@
         height: 28px;
         border: 1px solid #9ca3af;
         background: #fff;
-        font-size: 12px;
+        font-size: 15px;
         padding: 0 6px;
     }
 
     .disp-adv-field .select2-container {
         width: 100% !important;
-        font-size: 12px;
+        font-size: 15px;
     }
 
     .disp-adv-field .select2-container--default .select2-selection--multiple {
@@ -378,7 +378,7 @@
         border-radius: 2px;
         padding: 0 5px;
         margin-top: 3px;
-        font-size: 11px;
+        font-size: 14px;
     }
 
     .disp-adv-field .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
@@ -393,7 +393,7 @@
     .disp-adv-field .select2-container--default .select2-selection--multiple .select2-selection__placeholder {
         color: #6b7280;
         margin-top: 3px;
-        font-size: 12px;
+        font-size: 15px;
     }
 
     .disp-adv-field .select2-container--default .select2-selection--multiple .select2-selection__rendered {
@@ -402,7 +402,7 @@
 
     .disp-adv-field .select2-dropdown {
         border-color: #9ca3af;
-        font-size: 12px;
+        font-size: 15px;
     }
 
     .disp-adv-actions {
@@ -418,8 +418,8 @@
         border: 1px solid #c45c14;
         background: #e67e22;
         color: #fff;
-        font-size: 12px;
-        font-weight: 700;
+        font-size: 15px;
+        font-weight: 500;
         cursor: pointer;
     }
 
@@ -433,8 +433,8 @@
         border: 1px solid #6b7280;
         background: #9ca3af;
         color: #fff;
-        font-size: 12px;
-        font-weight: 700;
+        font-size: 15px;
+        font-weight: 500;
         cursor: pointer;
         text-decoration: none;
         display: inline-flex;
@@ -468,7 +468,7 @@
         border-collapse: collapse;
         table-layout: auto;
         font-family: Tahoma, "Segoe UI", Arial, sans-serif;
-        font-size: 11px;
+        font-size: 14px;
         white-space: nowrap;
     }
 
@@ -478,8 +478,8 @@
         z-index: 2;
         background: #6b7280;
         color: #fff;
-        font-weight: 700;
-        font-size: 11px;
+        font-weight: 500;
+        font-size: 14px;
         padding: 5px 6px;
         border: 1px solid #4b5563;
         text-align: left;
@@ -489,7 +489,7 @@
     .disp-grid thead th .sort {
         opacity: 0.75;
         margin-left: 2px;
-        font-size: 9px;
+        font-size: 12px;
     }
 
     .disp-grid tbody td {
@@ -553,7 +553,7 @@
     .disp-grid tbody tr:nth-child(even) td.disp-loc-hl,
     .disp-grid tbody tr.disp-data-row:hover td.disp-loc-hl {
         background: #fff467 !important;
-        font-weight: 600;
+        font-weight: 500;
         filter: none;
     }
 
@@ -587,25 +587,25 @@
 
     .disp-icon-note {
         color: #ca8a04;
-        font-size: 13px;
+        font-size: 16px;
     }
 
     .disp-icon-phone {
         color: #374151;
-        font-size: 11px;
+        font-size: 14px;
         margin-right: 2px;
     }
 
     .disp-icon-check {
         color: #15803d;
-        font-weight: 700;
+        font-weight: 500;
     }
 
     .disp-empty {
         padding: 2rem;
         text-align: center;
         color: #6b7280;
-        font-size: 13px;
+        font-size: 16px;
         background: #fff;
         border: 1px solid #9ca3af;
         border-top: 0;
@@ -615,7 +615,7 @@
         background: #fff !important;
         padding: 10px 12px;
         white-space: normal;
-        font-size: 11px;
+        font-size: 14px;
         color: #222;
         border-top: 0;
         filter: none !important;
@@ -640,8 +640,8 @@
     }
 
     .disp-inline-field label {
-        font-weight: 700;
-        font-size: 11px;
+        font-weight: 500;
+        font-size: 14px;
         color: #222;
         margin: 0;
     }
@@ -651,7 +651,7 @@
         height: 26px;
         border: 1px solid #9ca3af;
         background: #fff;
-        font-size: 12px;
+        font-size: 15px;
         padding: 0 6px;
         min-width: 110px;
     }
@@ -691,8 +691,8 @@
         border: 1px solid #1d4ed8;
         background: #2563eb;
         color: #fff;
-        font-size: 12px;
-        font-weight: 700;
+        font-size: 15px;
+        font-weight: 500;
         cursor: pointer;
     }
 
@@ -704,8 +704,8 @@
         border: 1px solid #6b7280;
         background: #9ca3af;
         color: #fff;
-        font-size: 12px;
-        font-weight: 700;
+        font-size: 15px;
+        font-weight: 500;
         cursor: pointer;
     }
 
@@ -713,7 +713,7 @@
 
     .disp-inline-msg {
         width: 100%;
-        font-size: 11px;
+        font-size: 14px;
         color: #15803d;
         display: none;
     }
@@ -730,7 +730,7 @@
         box-shadow: 0 4px 16px rgba(0,0,0,.18);
         padding: 4px 0;
         font-family: Tahoma, "Segoe UI", Arial, sans-serif;
-        font-size: 12px;
+        font-size: 15px;
     }
 
     .disp-ctx-menu[hidden] {
@@ -767,19 +767,19 @@
     }
 
     .disp-col-grid { width: 28px; text-align: center; }
-    .disp-col-status { font-weight: 600; }
+    .disp-col-status { font-weight: 500; }
     .disp-col-mu { width: 42px; text-align: center; }
     .disp-col-rnd { width: 28px; text-align: center; }
     .disp-col-pax, .disp-col-lug { text-align: center; }
-    .disp-col-total { font-weight: 700; white-space: nowrap; }
+    .disp-col-total { font-weight: 500; white-space: nowrap; }
 
     .disp-pay-badge {
         display: inline-flex;
         align-items: center;
         padding: 1px 7px;
         border-radius: 10px;
-        font-size: 10px;
-        font-weight: 700;
+        font-size: 13px;
+        font-weight: 500;
         line-height: 1.4;
         white-space: nowrap;
         border: 1px solid transparent;
@@ -815,7 +815,7 @@
         background: #1f2937;
         color: #fff;
         padding: 6px 10px;
-        font-size: 11px;
+        font-size: 14px;
         border-radius: 2px;
         pointer-events: none;
         max-width: 260px;
@@ -1236,7 +1236,7 @@
     <div class="modal-dialog modal-xl modal-dialog-centered" role="document" style="max-width:96vw;">
         <div class="modal-content">
             <div class="modal-header py-2">
-                <h5 class="modal-title" style="font-size:15px;">Edit Reservation <span id="disp-edit-modal-conf"></span></h5>
+                <h5 class="modal-title" style="font-size:18px; font-weight:500;">Edit Reservation <span id="disp-edit-modal-conf"></span></h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>

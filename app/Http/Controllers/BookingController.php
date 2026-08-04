@@ -3,10 +3,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\BookingPaymentLinkMail;
 use App\Mail\BookingReservationComposerMail;
 use App\Models\Booking;
 use App\Models\Vehicle;
 use App\Services\BookingEmailPayloadBuilder;
+use App\Services\StripePaymentLinkService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,7 +39,7 @@ class BookingController extends Controller
 
         $query = Booking::query()
             ->notDraft()
-            ->with(['vehicle', 'passengers'])
+            ->with(['vehicle', 'passengers', 'booker'])
             ->latest();
 
         if ($search = trim((string) $request->input('search'))) {
@@ -380,8 +382,194 @@ public function show($id)
     }
 
     /**
+     * Create a Stripe Checkout payment link and email it to the customer.
+     */
+    public function sendPaymentLink(Request $request, $id)
+    {
+        $booking = Booking::with(['passengers', 'booker', 'vehicle'])->findOrFail($id);
+
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+            'customer_name' => ['nullable', 'string', 'max:255'],
+            'personal_message' => ['nullable', 'string', 'max:500'],
+            'amount' => ['nullable', 'numeric', 'min:0.5'],
+        ]);
+
+        $status = strtolower(trim((string) $booking->payment_status));
+        if (in_array($status, ['paid', 'authorized'], true)) {
+            return $this->paymentLinkErrorResponse($request, [
+                'payment_status' => ['This reservation is already ' . $booking->payment_status . '. A new payment link cannot be sent.'],
+            ]);
+        }
+
+        if (! config('services.stripe.secret')) {
+            return $this->paymentLinkErrorResponse($request, [
+                'stripe' => ['Stripe is not configured. Add STRIPE_SECRET to .env.'],
+            ]);
+        }
+
+        $email = trim($validated['email']);
+        $passenger = $booking->passengers->first();
+        $customerName = trim((string) ($validated['customer_name'] ?? ''));
+        if ($customerName === '') {
+            $customerName = $passenger
+                ? trim($passenger->first_name . ' ' . $passenger->last_name)
+                : 'Customer';
+        }
+
+        if (isset($validated['amount']) && $validated['amount'] !== null) {
+            $newAmount = round((float) $validated['amount'], 2);
+            if (abs($newAmount - (float) $booking->total_price) > 0.001) {
+                $booking->total_price = $newAmount;
+                $booking->save();
+            }
+        }
+
+        if ((float) $booking->total_price < 0.5) {
+            return $this->paymentLinkErrorResponse($request, [
+                'amount' => ['Booking total must be at least $0.50 before sending a payment link.'],
+            ]);
+        }
+
+        try {
+            $service = new StripePaymentLinkService();
+            $checkout = $service->createCheckoutSession($booking, $email, $customerName);
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            Log::error('Stripe payment link create failed', [
+                'booking_id' => $booking->booking_id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return $this->paymentLinkErrorResponse($request, [
+                'stripe' => ['Stripe error: ' . $e->getMessage()],
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->paymentLinkErrorResponse($request, [
+                'stripe' => [$e->getMessage()],
+            ]);
+        }
+
+        $pickupTime = $booking->pickup_time;
+        if (is_object($pickupTime) && method_exists($pickupTime, 'format')) {
+            $pickupTime = $pickupTime->format('H:i');
+        } else {
+            $pickupTime = substr((string) $pickupTime, 0, 5);
+        }
+
+        $mailPayload = [
+            'booking_id' => $booking->booking_id ?: (string) $booking->id,
+            'customer_name' => $customerName,
+            'amount' => $checkout['amount'],
+            'payment_url' => $checkout['url'],
+            'pickup_date' => $booking->pickup_date
+                ? \Carbon\Carbon::parse($booking->pickup_date)->format('F j, Y')
+                : null,
+            'pickup_time' => $pickupTime ?: null,
+            'pickup_location' => $booking->pickup_location,
+            'personal_message' => $validated['personal_message'] ?? null,
+        ];
+
+        try {
+            $this->sendComposerMailWithTransientRetries(function () use ($email, $mailPayload) {
+                Mail::to($email)->send(new BookingPaymentLinkMail($mailPayload));
+            });
+        } catch (\Throwable $e) {
+            Log::error('Payment link email failed', [
+                'booking_id' => $booking->booking_id,
+                'message' => $e->getMessage(),
+            ]);
+            report($e);
+
+            $hint = $this->mailFailureHintFromException($e);
+
+            return $this->paymentLinkErrorResponse($request, [
+                'mail' => [
+                    'Payment link was created but email failed: ' . $e->getMessage()
+                    . ($hint ? ' ' . $hint : '')
+                    . ' You can copy the link: ' . $checkout['url'],
+                ],
+            ]);
+        }
+
+        // Persist recipient email on passenger when empty so future sends are prefilled.
+        if ($passenger && blank($passenger->email)) {
+            $passenger->email = $email;
+            $passenger->save();
+        }
+
+        $message = 'Payment link emailed to ' . $email . '.';
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'payment_url' => $checkout['url'],
+            ]);
+        }
+
+        return redirect()
+            ->route('bookings.index')
+            ->with('success', $message);
+    }
+
+    public function paymentLinkSuccess(Request $request)
+    {
+        $sessionId = (string) $request->query('session_id', '');
+        if ($sessionId === '') {
+            return view('pages.stripe.payment-link-result', [
+                'status' => 'unknown',
+                'message' => 'Missing checkout session.',
+            ]);
+        }
+
+        try {
+            $service = new StripePaymentLinkService();
+            $session = $service->retrieveSession($sessionId);
+            $booking = $service->markBookingPaidFromSession($session);
+
+            return view('pages.stripe.payment-link-result', [
+                'status' => 'success',
+                'bookingId' => $booking?->booking_id ?: ($session->metadata->booking_id ?? ''),
+                'amount' => isset($session->amount_total) ? ((int) $session->amount_total) / 100 : null,
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return view('pages.stripe.payment-link-result', [
+                'status' => 'unknown',
+                'message' => 'Payment may have succeeded, but we could not confirm it yet. Please contact support if needed.',
+            ]);
+        }
+    }
+
+    public function paymentLinkCancel(Request $request, $bookingId = null)
+    {
+        $booking = $bookingId ? Booking::find($bookingId) : null;
+
+        return view('pages.stripe.payment-link-result', [
+            'status' => 'cancel',
+            'bookingId' => $booking?->booking_id,
+        ]);
+    }
+
+    /**
      * @param  array<string, array<int, string>|string>  $errors
      */
+    private function paymentLinkErrorResponse(Request $request, array $errors)
+    {
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($errors)->flatten()->first() ?? 'Something went wrong.',
+                'errors' => $errors,
+            ], 422);
+        }
+
+        return back()->withErrors($errors)->withInput();
+    }
+
     /**
      * Retry a few times when the SMTP server returns a transient error (421, 450, 451, 452…).
      */

@@ -47,6 +47,8 @@ class Booking extends Model
         'from_admin_reservation',
         'stripe_customer_id',
         'stripe_payment_method_id',
+        'stripe_checkout_session_id',
+        'stripe_payment_link_url',
     ];
 
     public function scopeNotDraft($query)

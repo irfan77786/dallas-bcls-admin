@@ -204,6 +204,28 @@
                 <a href="{{ route('bookings.edit', $booking->id) }}" class="btn btn-primary mr-2 mb-2 mb-md-0">
                     <i class="ik ik-edit-2 mr-1"></i> Edit reservation
                 </a>
+                @php
+                    $showCanSendLink = ! in_array(strtolower(trim((string) $booking->payment_status)), ['paid', 'authorized'], true)
+                        && (float) $booking->total_price >= 0.5;
+                    $showLinkEmail = optional($booking->passengers->first())->email
+                        ?: optional($booking->booker)->email
+                        ?: '';
+                    $showLinkName = $booking->passengers->first()
+                        ? trim($booking->passengers->first()->first_name . ' ' . $booking->passengers->first()->last_name)
+                        : trim(optional($booking->booker)->first_name . ' ' . optional($booking->booker)->last_name);
+                @endphp
+                <button type="button"
+                    class="btn btn-outline-success mr-2 mb-2 mb-md-0 js-send-payment-link {{ $showCanSendLink ? '' : 'is-disabled' }}"
+                    @if(! $showCanSendLink) disabled @endif
+                    title="{{ $showCanSendLink ? 'Send Stripe payment link' : 'Payment link unavailable' }}"
+                    data-booking-id="{{ $booking->id }}"
+                    data-public-id="{{ $booking->booking_id ?: $booking->id }}"
+                    data-email="{{ $showLinkEmail }}"
+                    data-customer-name="{{ $showLinkName }}"
+                    data-amount="{{ number_format((float) $booking->total_price, 2, '.', '') }}"
+                    data-status="{{ $booking->payment_status ?: 'Unknown' }}">
+                    <i class="ik ik-credit-card mr-1"></i> Send payment link
+                </button>
                 <button type="button" class="btn btn-outline-primary" data-toggle="modal" data-target="#modalBookingEmailComposer">
                     <i class="ik ik-mail mr-1"></i> Send booking emails
                 </button>
@@ -553,4 +575,5 @@
 </div>
 
 @include('pages.bookings.partials.email-composer-modal')
+@include('pages.bookings.partials.payment-link-modal')
 @endsection

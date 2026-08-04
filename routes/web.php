@@ -18,6 +18,7 @@ use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\DispatchController;
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\StripeWebhookController;
 use Illuminate\Support\Facades\Artisan; 
 
 /*
@@ -38,6 +39,11 @@ Route::get('/setup', function () {
         'message' => 'All caches cleared and storage linked successfully!'
     ]);
 });
+
+// Stripe webhooks + public payment-link result pages (no auth)
+Route::post('/stripe/webhook', StripeWebhookController::class)->name('stripe.webhook');
+Route::get('/stripe/payment-link/success', [BookingController::class, 'paymentLinkSuccess'])->name('stripe.payment-link.success');
+Route::get('/stripe/payment-link/cancel/{booking?}', [BookingController::class, 'paymentLinkCancel'])->name('stripe.payment-link.cancel');
 
 // Home Route
 Route::get('/', function () {
@@ -123,6 +129,7 @@ Route::group(['middleware' => 'auth'], function () {
     Route::post('/bookings/{id}/duplicate', [BookingController::class, 'duplicate'])->name('bookings.duplicate');
     Route::delete('/bookings/{id}', [BookingController::class, 'destroy'])->name('bookings.destroy');
     Route::post('/bookings/{id}/send-composer-emails', [BookingController::class, 'sendComposerEmails'])->name('bookings.send-composer-emails');
+    Route::post('/bookings/{id}/send-payment-link', [BookingController::class, 'sendPaymentLink'])->name('bookings.send-payment-link');
 
     Route::get('/dispatches', [DispatchController::class, 'index'])->name('dispatches.index');
     Route::patch('/dispatches/{booking}', [DispatchController::class, 'update'])->name('dispatches.update');
