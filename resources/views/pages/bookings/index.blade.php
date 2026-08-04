@@ -208,21 +208,61 @@
         background: rgba(108, 117, 125, 0.12);
         color: #495057;
     }
-    /* Icon links aligned with theme .table-actions (same as Accounts) */
+    /* Action icons: one row, same size, even gaps */
     .bookings-table .table-actions,
-    .booking-mobile-card .table-actions { text-align: right; }
+    .booking-mobile-card .table-actions {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 4px;
+        line-height: 1;
+        vertical-align: middle;
+        font-size: 0; /* collapse whitespace text nodes between icons */
+    }
     .bookings-table .table-actions a,
-    .booking-mobile-card .table-actions a { color: #bcc1c6; display: inline-block; margin-left: 8px; font-size: 16px; line-height: 1; }
-    .bookings-table .table-actions a:first-child,
-    .booking-mobile-card .table-actions a:first-child { margin-left: 0; }
-    .bookings-table .table-actions .booking-delete-form,
-    .booking-mobile-card .table-actions .booking-delete-form { display: inline; margin: 0 0 0 8px; padding: 0; vertical-align: middle; }
+    .booking-mobile-card .table-actions a,
     .bookings-table .table-actions .booking-delete-btn,
     .booking-mobile-card .table-actions .booking-delete-btn {
-        background: none; border: none; padding: 0; margin: 0; cursor: pointer; font-size: 16px; line-height: 1; color: #bcc1c6; vertical-align: middle;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        margin: 0;
+        padding: 0;
+        color: #bcc1c6;
+        font-size: 16px;
+        line-height: 1;
+        text-decoration: none;
+        vertical-align: middle;
     }
+    .bookings-table .table-actions a i,
+    .booking-mobile-card .table-actions a i,
     .bookings-table .table-actions .booking-delete-btn i,
-    .booking-mobile-card .table-actions .booking-delete-btn i { position: relative; top: 1px; }
+    .booking-mobile-card .table-actions .booking-delete-btn i {
+        display: block;
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        padding: 0;
+        line-height: 16px;
+        font-size: 16px;
+        position: static;
+        top: auto;
+    }
+    .bookings-table .table-actions .booking-delete-form,
+    .booking-mobile-card .table-actions .booking-delete-form {
+        display: inline-flex;
+        align-items: center;
+        margin: 0;
+        padding: 0;
+    }
+    .bookings-table .table-actions .booking-delete-btn,
+    .booking-mobile-card .table-actions .booking-delete-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+    }
     .bookings-empty {
         padding: 2.5rem 1rem;
         text-align: center;
@@ -543,12 +583,8 @@
                                 </td>
                                 <td class="text-right">
                                     <div class="table-actions">
-                                        <a href="{{ route('bookings.show', $booking->id) }}" title="{{ __('View') }}">
-                                            <i class="ik ik-eye f-16"></i>
-                                        </a>
-                                        <a href="{{ route('bookings.edit', $booking->id) }}" title="{{ __('Edit') }}">
-                                            <i class="ik ik-edit-2 f-16 text-primary"></i>
-                                        </a>
+                                        <a href="{{ route('bookings.show', $booking->id) }}" title="{{ __('View') }}"><i class="ik ik-eye f-16"></i></a>
+                                        <a href="{{ route('bookings.edit', $booking->id) }}" title="{{ __('Edit') }}"><i class="ik ik-edit-2 f-16 text-primary"></i></a>
                                         <a href="#"
                                            class="js-send-payment-link {{ $canSendPaymentLink($booking) ? '' : 'is-disabled' }}"
                                            title="{{ $canSendPaymentLink($booking) ? __('Send payment link') : __('Payment link unavailable') }}"
@@ -557,23 +593,17 @@
                                            data-email="{{ $bookingPaymentLinkEmail($booking) }}"
                                            data-customer-name="{{ $bookingCustomerName($booking) }}"
                                            data-amount="{{ number_format((float) $booking->total_price, 2, '.', '') }}"
-                                           data-status="{{ $booking->payment_status ?: 'Unknown' }}">
-                                            <i class="ik ik-credit-card f-16"></i>
-                                        </a>
+                                           data-status="{{ $booking->payment_status ?: 'Unknown' }}"><i class="ik ik-credit-card f-16"></i></a>
                                         {{-- Temporarily hide duplicate action
                                         <form method="POST" action="{{ route('bookings.duplicate', $booking->id) }}" onsubmit="return confirm(@json(__('Duplicate this reservation?')));" class="booking-delete-form m-0">
                                             @csrf
-                                            <button type="submit" class="booking-delete-btn" title="{{ __('Duplicate') }}">
-                                                <i class="ik ik-copy f-16 text-info"></i>
-                                            </button>
+                                            <button type="submit" class="booking-delete-btn" title="{{ __('Duplicate') }}"><i class="ik ik-copy f-16 text-info"></i></button>
                                         </form>
                                         --}}
                                         <form method="POST" action="{{ route('bookings.destroy', $booking->id) }}" onsubmit="return confirm(@json(__('Delete this reservation permanently?')));" class="booking-delete-form m-0">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="booking-delete-btn" title="{{ __('Delete') }}">
-                                                <i class="ik ik-trash-2 f-16 text-danger"></i>
-                                            </button>
+                                            <button type="submit" class="booking-delete-btn" title="{{ __('Delete') }}"><i class="ik ik-trash-2 f-16 text-danger"></i></button>
                                         </form>
                                     </div>
                                 </td>
@@ -661,12 +691,8 @@
                         </div>
                         <div class="d-flex align-items-center justify-content-end text-right" style="gap:0.5rem; flex-wrap:wrap;">
                             <div class="table-actions">
-                                <a href="{{ route('bookings.show', $booking->id) }}" title="{{ __('View') }}">
-                                    <i class="ik ik-eye f-16"></i>
-                                </a>
-                                <a href="{{ route('bookings.edit', $booking->id) }}" title="{{ __('Edit') }}">
-                                    <i class="ik ik-edit-2 f-16 text-primary"></i>
-                                </a>
+                                <a href="{{ route('bookings.show', $booking->id) }}" title="{{ __('View') }}"><i class="ik ik-eye f-16"></i></a>
+                                <a href="{{ route('bookings.edit', $booking->id) }}" title="{{ __('Edit') }}"><i class="ik ik-edit-2 f-16 text-primary"></i></a>
                                 <a href="#"
                                    class="js-send-payment-link {{ $canSendPaymentLink($booking) ? '' : 'is-disabled' }}"
                                    title="{{ $canSendPaymentLink($booking) ? __('Send payment link') : __('Payment link unavailable') }}"
@@ -675,23 +701,17 @@
                                    data-email="{{ $bookingPaymentLinkEmail($booking) }}"
                                    data-customer-name="{{ $bookingCustomerName($booking) }}"
                                    data-amount="{{ number_format((float) $booking->total_price, 2, '.', '') }}"
-                                   data-status="{{ $booking->payment_status ?: 'Unknown' }}">
-                                    <i class="ik ik-credit-card f-16"></i>
-                                </a>
+                                   data-status="{{ $booking->payment_status ?: 'Unknown' }}"><i class="ik ik-credit-card f-16"></i></a>
                                 {{-- Temporarily hide duplicate action
                                 <form method="POST" action="{{ route('bookings.duplicate', $booking->id) }}" onsubmit="return confirm(@json(__('Duplicate this reservation?')));" class="booking-delete-form m-0">
                                     @csrf
-                                    <button type="submit" class="booking-delete-btn" title="{{ __('Duplicate') }}">
-                                        <i class="ik ik-copy f-16 text-info"></i>
-                                    </button>
+                                    <button type="submit" class="booking-delete-btn" title="{{ __('Duplicate') }}"><i class="ik ik-copy f-16 text-info"></i></button>
                                 </form>
                                 --}}
                                 <form method="POST" action="{{ route('bookings.destroy', $booking->id) }}" onsubmit="return confirm(@json(__('Delete this reservation permanently?')));" class="booking-delete-form m-0">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="booking-delete-btn" title="{{ __('Delete') }}">
-                                        <i class="ik ik-trash-2 f-16 text-danger"></i>
-                                    </button>
+                                    <button type="submit" class="booking-delete-btn" title="{{ __('Delete') }}"><i class="ik ik-trash-2 f-16 text-danger"></i></button>
                                 </form>
                             </div>
                         </div>
