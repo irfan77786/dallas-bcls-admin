@@ -27,6 +27,10 @@
         <i class="ik ik-briefcase"></i>
         <span>{{ __('Accounts') }}</span>
     </a>
+    <a href="{{ route('drivers.index') }}" class="header-nav-item {{ $segment1 === 'drivers' ? 'active' : '' }}">
+        <i class="ik ik-users"></i>
+        <span>{{ __('Drivers') }}</span>
+    </a>
     <a href="{{ url('/vehicle') }}" class="header-nav-item {{ in_array($segment1, ['vehicle', 'manage-cars'], true) ? 'active' : '' }}">
         <i class="ik ik-truck"></i>
         <span>{{ __('Manage Vehicles') }}</span>

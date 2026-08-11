@@ -708,6 +708,24 @@
         font-size: 10px;
         box-sizing: border-box;
     }
+    .la-assign-driver-wrap {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+        flex: 1;
+    }
+    .la-assign-driver-wrap select { flex: 1; min-width: 0; }
+    .la-driver-preview {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid #999;
+        flex-shrink: 0;
+        background: #eee;
+    }
+    .la-driver-preview.is-empty { display: none !important; }
     .la-right-footer {
         display: flex; justify-content: flex-end; align-items: center;
         padding: 4px 3px; border-top: 1px solid #aaa; background: #e0e0e0;
@@ -1280,6 +1298,7 @@
                 'serviceOptionOld' => $serviceOptionOld,
                 'selectedVehicleLabel' => $selectedVehicleLabel,
                 'vehicles' => $vehicles,
+                'drivers' => $drivers ?? collect(),
                 'stripeEnabled' => $stripeEnabled ?? false,
                 'childSeatPricePerSeatUsd' => $childSeatPricePerSeatUsd ?? 20,
             ])
@@ -2808,6 +2827,10 @@ window.initReservationPlaces = function () {
                     dropoff_location: dof ? dof.value : null,
                     po_client_ref: poRef ? poRef.value : null,
                     vehicle_id: vehicleId && vehicleId.value ? parseInt(vehicleId.value, 10) : null,
+                    driver_id: (function () {
+                        var d = document.getElementById('la-driver-id');
+                        return d && d.value ? parseInt(d.value, 10) : null;
+                    })(),
                     service_option: serviceOpt ? serviceOpt.value : null,
                     pax_count: pax && pax.value ? parseInt(pax.value, 10) : null,
                     luggage_count: luggage && luggage.value !== '' ? parseInt(luggage.value, 10) : null,
@@ -3270,7 +3293,72 @@ window.initReservationPlaces = function () {
             var label = root ? root.querySelector('.la-compact-select-value') : null;
             disp.textContent = 'Vehicle: ' + (label ? label.textContent : '');
         }
+        syncAssignCarFromVehicleId();
     });
+
+    function syncDriverPreview() {
+        var sel = document.getElementById('la-driver-id');
+        var img = document.getElementById('la-driver-preview');
+        if (!sel || !img) return;
+        var opt = sel.options[sel.selectedIndex];
+        var pic = opt ? (opt.getAttribute('data-picture') || '') : '';
+        if (pic) {
+            img.src = pic;
+            img.classList.remove('is-empty');
+            img.style.display = '';
+        } else {
+            img.removeAttribute('src');
+            img.classList.add('is-empty');
+            img.style.display = 'none';
+        }
+    }
+
+    function syncAssignCarFromVehicleId() {
+        var hid = document.getElementById('vehicle-id');
+        var car = document.getElementById('la-assign-car');
+        if (!hid || !car) return;
+        var val = hid.value || '';
+        if (car.value !== val) car.value = val;
+    }
+
+    function syncVehicleFromAssignCar() {
+        var car = document.getElementById('la-assign-car');
+        var hid = document.getElementById('vehicle-id');
+        var root = document.getElementById('vehicle-select');
+        if (!car || !hid) return;
+        var val = car.value || '';
+        hid.value = val;
+        if (root) {
+            var options = root.querySelectorAll('.la-compact-select-option');
+            var valueEl = root.querySelector('.la-compact-select-value');
+            var matched = null;
+            options.forEach(function (o) {
+                var isMatch = (o.getAttribute('data-value') || '') === val;
+                o.classList.toggle('selected', isMatch);
+                if (isMatch) matched = o;
+            });
+            if (valueEl) {
+                if (matched) {
+                    valueEl.textContent = matched.getAttribute('data-label') || matched.textContent;
+                } else {
+                    valueEl.textContent = '---- NOT ASSIGNED ----';
+                }
+            }
+            var disp = document.getElementById('la-vehicle-display');
+            if (disp && valueEl) disp.textContent = 'Vehicle: ' + valueEl.textContent;
+        }
+    }
+
+    var driverSelect = document.getElementById('la-driver-id');
+    if (driverSelect) {
+        driverSelect.addEventListener('change', syncDriverPreview);
+        syncDriverPreview();
+    }
+    var assignCar = document.getElementById('la-assign-car');
+    if (assignCar) {
+        assignCar.addEventListener('change', syncVehicleFromAssignCar);
+        syncAssignCarFromVehicleId();
+    }
 
     function initDateTimePickersOnClick() {
         document.querySelectorAll('input[type="date"], input[type="time"]').forEach(function (el) {

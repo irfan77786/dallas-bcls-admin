@@ -241,18 +241,52 @@
         </div>
 
         {{-- Driver / car assignment --}}
+        @php
+            $driversList = $drivers ?? collect();
+            $selectedDriverId = (string) $formValue('driver_id', '');
+            $selectedCarId = (string) $formValue('vehicle_id', '');
+            $selectedDriverPicture = $selectedDriverId !== ''
+                ? optional($driversList->firstWhere('id', (int) $selectedDriverId))->pictureUrl()
+                : null;
+        @endphp
         <div class="la-right-section la-right-assign">
             <div class="la-price-tabs" data-la-assign-tabs>
                 <div class="la-price-tab active" data-assign-tab="primary">Primary</div>
                 <div class="la-price-tab" data-assign-tab="secondary">Secondary</div>
             </div>
-            <div class="la-right-lr-row">
-                <label class="la-right-lr-label">Driver:</label>
-                <select tabindex="-1"><option>— Unassigned —</option></select>
+            <div class="la-right-lr-row la-assign-driver-row">
+                <label class="la-right-lr-label" for="la-driver-id">Driver:</label>
+                <div class="la-assign-driver-wrap">
+                    <img id="la-driver-preview" class="la-driver-preview{{ empty($selectedDriverPicture) ? ' is-empty' : '' }}" alt=""
+                         @if(empty($selectedDriverPicture)) style="display:none;" @else src="{{ $selectedDriverPicture }}" @endif>
+                    <select name="driver_id" id="la-driver-id">
+                        <option value="">— Unassigned —</option>
+                        @foreach($driversList as $driver)
+                            <option
+                                value="{{ $driver->id }}"
+                                data-picture="{{ $driver->pictureUrl() ?: '' }}"
+                                @selected($selectedDriverId === (string) $driver->id)
+                            >
+                                {{ $driver->name }}@if($driver->plate_number) ({{ $driver->plate_number }})@endif
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
             <div class="la-right-lr-row">
-                <label class="la-right-lr-label">Car:</label>
-                <select tabindex="-1"><option>— Unassigned —</option></select>
+                <label class="la-right-lr-label" for="la-assign-car">Car:</label>
+                <select id="la-assign-car" data-la-assign-car>
+                    <option value="">— Unassigned —</option>
+                    @foreach($vehicles as $vehicle)
+                        <option
+                            value="{{ $vehicle->id }}"
+                            data-label="{{ $vehicle->vehicle_name }} ({{ $vehicle->number_of_passengers }} PAX)"
+                            @selected($selectedCarId === (string) $vehicle->id)
+                        >
+                            {{ $vehicle->vehicle_code ? $vehicle->vehicle_code.' — '.$vehicle->vehicle_name : $vehicle->vehicle_name }}
+                        </option>
+                    @endforeach
+                </select>
             </div>
         </div>
 

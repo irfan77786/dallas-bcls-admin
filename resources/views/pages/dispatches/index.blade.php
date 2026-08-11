@@ -678,6 +678,80 @@
         max-width: 160px;
     }
 
+    .disp-inline-field-driver {
+        min-width: 220px;
+        max-width: 280px;
+        flex: 0 0 240px;
+    }
+
+    .disp-inline-field-driver select {
+        min-width: 0;
+        width: 240px;
+        max-width: 280px;
+    }
+
+    .disp-driver-opt {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .disp-driver-opt-img,
+    .disp-driver-opt-ph {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+        background: #e5e7eb;
+        border: 1px solid #d1d5db;
+    }
+
+    .disp-driver-opt-ph {
+        display: inline-block;
+    }
+
+    .disp-driver-cell-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .disp-driver-cell-img {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        object-fit: cover;
+        vertical-align: middle;
+        border: 1px solid #c4c4c4;
+    }
+
+    .select2-container--default .select2-results__option--highlighted .disp-driver-opt-ph {
+        background: #fff;
+    }
+
+    .disp-inline-field-driver .select2-container {
+        width: 240px !important;
+        font-size: 14px;
+    }
+
+    .disp-inline-field-driver .select2-container--default .select2-selection--single {
+        height: 26px;
+        border: 1px solid #9ca3af;
+        border-radius: 0;
+        background: #fff;
+    }
+
+    .disp-inline-field-driver .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 24px;
+        padding-left: 6px;
+        color: #111;
+    }
+
+    .disp-inline-field-driver .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 24px;
+    }
+
     .disp-inline-actions {
         display: inline-flex;
         gap: 6px;
@@ -687,6 +761,7 @@
 
     .disp-btn-ok {
         height: 26px;
+        min-width: 72px;
         padding: 0 14px;
         border: 1px solid #1d4ed8;
         background: #2563eb;
@@ -694,9 +769,40 @@
         font-size: 15px;
         font-weight: 500;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
     }
 
     .disp-btn-ok:hover { background: #1d4ed8; }
+    .disp-btn-ok:disabled {
+        opacity: 0.85;
+        cursor: wait;
+    }
+    .disp-btn-ok.is-loading {
+        min-width: 118px;
+        background: #1d4ed8;
+    }
+    .disp-btn-ok .disp-ok-spinner {
+        display: none;
+        width: 12px;
+        height: 12px;
+        border: 2px solid rgba(255,255,255,0.35);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: dispOkSpin 0.7s linear infinite;
+    }
+    .disp-btn-ok.is-loading .disp-ok-spinner { display: inline-block; }
+    .disp-btn-ok.is-loading .disp-ok-label { /* keep text */ }
+    @keyframes dispOkSpin {
+        to { transform: rotate(360deg); }
+    }
+
+    .disp-inline-msg.is-success {
+        color: #15803d;
+        font-weight: 600;
+    }
 
     .disp-btn-close {
         height: 26px;
@@ -959,7 +1065,12 @@
                 </div>
                 <div class="disp-adv-field">
                     <label>Driver(s):</label>
-                    <select name="drivers[]" class="disp-select2" multiple data-placeholder="Select options" disabled title="Drivers not available yet">
+                    <select name="drivers[]" class="disp-select2" multiple data-placeholder="Select options">
+                        @foreach(($drivers ?? []) as $driver)
+                            <option value="{{ $driver->id }}" @selected(in_array((string) $driver->id, array_map('strval', (array) request('drivers', [])), true))>
+                                {{ $driver->name }}
+                            </option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="disp-adv-field">
@@ -1112,7 +1223,12 @@
                             <td data-veh-code-cell>{{ $row['veh_code'] }}</td>
                             <td data-driver-cell>
                                 @if($row['driver'] !== '')
-                                    <a class="disp-link" href="#">{{ $row['driver'] }}</a>
+                                    <span class="disp-driver-cell-wrap">
+                                        @if(!empty($row['driver_picture']))
+                                            <img src="{{ $row['driver_picture'] }}" alt="" class="disp-driver-cell-img">
+                                        @endif
+                                        <a class="disp-link" href="#">{{ $row['driver'] }}</a>
+                                    </span>
                                 @endif
                             </td>
                             <td
@@ -1151,7 +1267,12 @@
                         </tr>
                         <tr class="disp-detail-row" data-detail-for="{{ $row['id'] }}" hidden>
                             <td colspan="20">
-                                <form class="disp-inline-form" data-inline-form="{{ $row['id'] }}">
+                                <form
+                                    class="disp-inline-form"
+                                    data-inline-form="{{ $row['id'] }}"
+                                    data-initial-driver-id="{{ $row['driver_id'] ?? '' }}"
+                                    data-initial-trip-status="{{ $row['status_key'] ?? '' }}"
+                                >
                                     <div class="disp-inline-field">
                                         <label>Pick-Up Date:</label>
                                         <input type="text" name="pickup_date" value="{{ $row['pu_date'] }}" autocomplete="off">
@@ -1187,10 +1308,19 @@
                                             @endforeach
                                         </select>
                                     </div>
-                                    <div class="disp-inline-field">
+                                    <div class="disp-inline-field disp-inline-field-driver">
                                         <label>Primary Driver:</label>
-                                        <select name="driver_ui" disabled>
+                                        <select name="driver_id" class="disp-driver-select" data-placeholder="— Unassigned —">
                                             <option value="">— Unassigned —</option>
+                                            @foreach(($drivers ?? []) as $driver)
+                                                <option
+                                                    value="{{ $driver->id }}"
+                                                    data-picture="{{ $driver->pictureUrl() ?: '' }}"
+                                                    @selected((string) ($row['driver_id'] ?? '') === (string) $driver->id)
+                                                >
+                                                    {{ $driver->name }}@if($driver->plate_number) ({{ $driver->plate_number }})@endif
+                                                </option>
+                                            @endforeach
                                         </select>
                                     </div>
                                     <div class="disp-inline-field disp-inline-field-car">
@@ -1209,7 +1339,10 @@
                                         </select>
                                     </div>
                                     <div class="disp-inline-actions">
-                                        <button type="submit" class="disp-btn-ok">OK</button>
+                                        <button type="submit" class="disp-btn-ok" aria-busy="false">
+                                            <span class="disp-ok-spinner" aria-hidden="true"></span>
+                                            <span class="disp-ok-label">OK</span>
+                                        </button>
                                         <button type="button" class="disp-btn-close" data-close="{{ $row['id'] }}">Close</button>
                                     </div>
                                     <div class="disp-inline-msg" data-inline-msg></div>
@@ -1526,13 +1659,55 @@
         });
     }
 
+    function formatDriverSelectOption(opt) {
+        if (!opt.id) {
+            return opt.text;
+        }
+        var picture = '';
+        if (opt.element) {
+            picture = opt.element.getAttribute('data-picture') || '';
+        }
+        var $ = window.jQuery;
+        var imgHtml = picture
+            ? '<img src="' + picture + '" class="disp-driver-opt-img" alt="">'
+            : '<span class="disp-driver-opt-ph"></span>';
+        return $('<span class="disp-driver-opt">' + imgHtml + '<span>' + opt.text + '</span></span>');
+    }
+
+    function initDriverSelect2(scope) {
+        if (!window.jQuery || typeof window.jQuery.fn.select2 !== 'function') return;
+        var $ = window.jQuery;
+        var $root = scope ? $(scope) : $(document);
+        $root.find('.disp-driver-select').each(function () {
+            var $el = $(this);
+            if ($el.hasClass('select2-hidden-accessible')) {
+                $el.select2('destroy');
+            }
+            $el.select2({
+                width: '240px',
+                placeholder: $el.data('placeholder') || '— Unassigned —',
+                allowClear: true,
+                templateResult: formatDriverSelectOption,
+                templateSelection: formatDriverSelectOption,
+                dropdownParent: $(document.body)
+            });
+        });
+    }
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initDispSelect2);
+        document.addEventListener('DOMContentLoaded', function () {
+            initDispSelect2();
+            initDriverSelect2();
+        });
     } else {
         initDispSelect2();
+        initDriverSelect2();
     }
     // theme.js may also init selects after this stack; re-init once more shortly after.
-    setTimeout(initDispSelect2, 50);
+    setTimeout(function () {
+        initDispSelect2();
+        initDriverSelect2();
+    }, 50);
 
     if (advToggle && advPanel) {
         advToggle.addEventListener('click', function (e) {
@@ -1596,6 +1771,10 @@
     function openQuickEdit(id) {
         closeAllRows(id);
         setRowOpen(id, true);
+        var detail = document.querySelector('.disp-detail-row[data-detail-for="' + id + '"]');
+        if (detail) {
+            setTimeout(function () { initDriverSelect2(detail); }, 0);
+        }
     }
 
     function hideCtxMenu() {
@@ -1819,20 +1998,48 @@
             var id = inlineForm.getAttribute('data-inline-form');
             var msg = inlineForm.querySelector('[data-inline-msg]');
             var btn = inlineForm.querySelector('.disp-btn-ok');
+            var btnLabel = btn ? btn.querySelector('.disp-ok-label') : null;
+            var closeBtn = inlineForm.querySelector('.disp-btn-close');
+            var driverSelect = inlineForm.querySelector('[name="driver_id"]');
+            var statusSelect = inlineForm.querySelector('[name="trip_status"]');
             var payload = {
                 pickup_date: (inlineForm.querySelector('[name="pickup_date"]') || {}).value || '',
                 pickup_time: (inlineForm.querySelector('[name="pickup_time"]') || {}).value || '',
                 dropoff_time: (inlineForm.querySelector('[name="dropoff_time"]') || {}).value || '',
                 spot_time: (inlineForm.querySelector('[name="spot_time"]') || {}).value || '',
-                trip_status: (inlineForm.querySelector('[name="trip_status"]') || {}).value || '',
-                vehicle_id: (inlineForm.querySelector('[name="vehicle_id"]') || {}).value || null
+                trip_status: (statusSelect || {}).value || '',
+                vehicle_id: (inlineForm.querySelector('[name="vehicle_id"]') || {}).value || null,
+                driver_id: (driverSelect || {}).value || null
             };
             if (payload.vehicle_id === '') payload.vehicle_id = null;
+            if (payload.driver_id === '') payload.driver_id = null;
 
-            if (btn) btn.disabled = true;
+            var initialDriverId = String(inlineForm.getAttribute('data-initial-driver-id') || '');
+            var initialStatus = String(inlineForm.getAttribute('data-initial-trip-status') || '');
+            var nextDriverId = payload.driver_id != null ? String(payload.driver_id) : '';
+            var nextStatus = String(payload.trip_status || '');
+            var maySendDriverEmail = nextDriverId !== '' && nextDriverId !== initialDriverId;
+            var maySendStatusEmail = nextStatus !== '' && nextStatus !== initialStatus;
+            var maySendEmail = maySendDriverEmail || maySendStatusEmail;
+
+            function setOkLoading(on, labelText) {
+                if (!btn) return;
+                btn.disabled = !!on;
+                btn.classList.toggle('is-loading', !!on);
+                btn.setAttribute('aria-busy', on ? 'true' : 'false');
+                if (btnLabel) btnLabel.textContent = on ? (labelText || 'Saving…') : 'OK';
+                if (closeBtn) closeBtn.disabled = !!on;
+            }
+
             if (msg) {
-                msg.classList.remove('is-visible', 'is-error');
+                msg.classList.remove('is-visible', 'is-error', 'is-success');
                 msg.textContent = '';
+            }
+
+            setOkLoading(true, maySendEmail ? 'Sending…' : 'Saving…');
+            if (msg && maySendEmail) {
+                msg.textContent = 'Please wait — saving and sending email…';
+                msg.classList.add('is-visible');
             }
 
             fetch('/dispatches/' + id, {
@@ -1859,6 +2066,7 @@
                     var puTimeCell = dataRow.querySelector('[data-pu-time-cell]');
                     var vehCell = dataRow.querySelector('[data-veh-code-cell]');
                     var carCell = dataRow.querySelector('[data-car-cell]');
+                    var driverCell = dataRow.querySelector('[data-driver-cell]');
                     if (statusCell) statusCell.textContent = rowData.status_label || '';
                     if (puDateCell) puDateCell.textContent = rowData.pu_date || '';
                     if (puTimeCell) puTimeCell.textContent = rowData.pu_time || '';
@@ -1868,21 +2076,67 @@
                             ? '<a class="disp-link" href="#">' + rowData.car + '</a>'
                             : '';
                     }
+                    if (driverCell) {
+                        if (rowData.driver) {
+                            var drvHtml = '<span class="disp-driver-cell-wrap">';
+                            if (rowData.driver_picture) {
+                                drvHtml += '<img src="' + rowData.driver_picture + '" alt="" class="disp-driver-cell-img">';
+                            }
+                            drvHtml += '<a class="disp-link" href="#">' + rowData.driver + '</a></span>';
+                            driverCell.innerHTML = drvHtml;
+                        } else {
+                            driverCell.innerHTML = '';
+                        }
+                    }
                 }
+
+                // Keep form baselines in sync after a successful save.
+                inlineForm.setAttribute('data-initial-driver-id', rowData && rowData.driver_id != null ? String(rowData.driver_id) : '');
+                inlineForm.setAttribute('data-initial-trip-status', rowData && rowData.status_key ? String(rowData.status_key) : nextStatus);
+
+                var driverEmailSent = !!result.data.driver_email_sent;
+                var statusEmailSent = !!result.data.status_email_sent;
+                var emailSent = driverEmailSent || statusEmailSent;
+
+                if (emailSent && typeof Swal !== 'undefined') {
+                    var title = 'Successfully sent';
+                    var textParts = [];
+                    if (driverEmailSent) textParts.push('Driver assignment email');
+                    if (statusEmailSent) textParts.push('Trip status update email');
+                    var text = textParts.join(' and ') + ' sent to passenger and admin.';
+                    if (msg) {
+                        msg.textContent = text;
+                        msg.classList.add('is-visible', 'is-success');
+                    }
+                    return Swal.fire({
+                        icon: 'success',
+                        title: title,
+                        text: text,
+                        timer: 2200,
+                        showConfirmButton: false
+                    }).then(function () {
+                        setRowOpen(id, false);
+                    });
+                }
+
                 if (msg) {
-                    msg.textContent = 'Saved.';
-                    msg.classList.add('is-visible');
+                    msg.textContent = 'Saved successfully.';
+                    msg.classList.add('is-visible', 'is-success');
                 }
-                setTimeout(function () { setRowOpen(id, false); }, 350);
+                setTimeout(function () { setRowOpen(id, false); }, 450);
             })
             .catch(function (err) {
                 if (msg) {
                     msg.textContent = err.message || 'Save failed';
+                    msg.classList.remove('is-success');
                     msg.classList.add('is-visible', 'is-error');
+                }
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire('Error', err.message || 'Save failed', 'error');
                 }
             })
             .finally(function () {
-                if (btn) btn.disabled = false;
+                setOkLoading(false);
             });
         });
     });

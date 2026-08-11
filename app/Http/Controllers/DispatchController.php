@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendDriverAssignmentEmails;
+use App\Jobs\SendTripStatusChangeEmails;
 use App\Models\Booking;
+use App\Models\Driver;
 use App\Models\Vehicle;
 use App\Services\BookingEmailPayloadBuilder;
 use Carbon\Carbon;
@@ -63,6 +66,7 @@ class DispatchController extends Controller
         $advanced = [
             'statuses' => array_values(array_filter((array) $request->input('statuses', []))),
             'cars' => array_values(array_filter((array) $request->input('cars', []))),
+            'drivers' => array_values(array_filter((array) $request->input('drivers', []))),
             'vehicle_types' => array_values(array_filter((array) $request->input('vehicle_types', []))),
             'confirmation' => trim((string) $request->input('confirmation', '')),
             'account' => trim((string) $request->input('account', '')),
@@ -79,7 +83,7 @@ class DispatchController extends Controller
 
         $query = Booking::query()
             ->notDraft()
-            ->with(['vehicle', 'passengers', 'accountSnapshot', 'returnService']);
+            ->with(['vehicle', 'passengers', 'accountSnapshot', 'returnService', 'driver']);
 
         if ($dateFrom && $dateTo) {
             $query->whereDate('pickup_date', '>=', $dateFrom->toDateString())
@@ -176,6 +180,10 @@ class DispatchController extends Controller
             $query->whereIn('vehicle_id', $advanced['cars']);
         }
 
+        if (count($advanced['drivers']) > 0) {
+            $query->whereIn('driver_id', $advanced['drivers']);
+        }
+
         if (count($advanced['vehicle_types']) > 0) {
             $codes = $advanced['vehicle_types'];
             $query->whereHas('vehicle', function ($vehicleQuery) use ($codes) {
@@ -200,6 +208,11 @@ class DispatchController extends Controller
             ->when(Schema::hasColumn('vehicles', 'sort_order'), fn ($q) => $q->orderBy('sort_order'))
             ->orderBy('vehicle_name')
             ->get(['id', 'vehicle_name', 'vehicle_code']);
+
+        $drivers = Driver::query()
+            ->where('active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'phone', 'email', 'picture', 'plate_number', 'car_make', 'car_model', 'vehicle_type']);
 
         $vehicleTypes = $vehicles
             ->pluck('vehicle_code')
@@ -226,6 +239,7 @@ class DispatchController extends Controller
             'advancedActive' => $advancedActive,
             'bookings' => $bookings,
             'vehicles' => $vehicles,
+            'drivers' => $drivers,
             'vehicleTypes' => $vehicleTypes,
             'statusOptions' => $statusOptions,
             'tripStatusOptions' => $tripStatusOptions,
@@ -388,7 +402,11 @@ class DispatchController extends Controller
             'spot_time' => ['nullable', 'string', 'max:40'],
             'trip_status' => ['nullable', 'string', 'max:40', 'in:' . implode(',', array_keys(self::tripStatusOptions()))],
             'vehicle_id' => ['nullable', 'integer', 'exists:vehicles,id'],
+            'driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
         ]);
+
+        $previousDriverId = $booking->driver_id ? (int) $booking->driver_id : null;
+        $previousTripStatus = strtolower(trim((string) ($booking->trip_status ?? '')));
 
         if (array_key_exists('pickup_date', $validated) && filled($validated['pickup_date'])) {
             try {
@@ -422,12 +440,39 @@ class DispatchController extends Controller
             $booking->vehicle_id = $validated['vehicle_id'] ?: null;
         }
 
+        if (array_key_exists('driver_id', $validated)) {
+            $booking->driver_id = $validated['driver_id'] ?: null;
+        }
+
         $booking->save();
-        $booking->load(['vehicle', 'passengers', 'accountSnapshot', 'returnService']);
+        $booking->load(['vehicle', 'passengers', 'accountSnapshot', 'returnService', 'driver']);
+
+        $newDriverId = $booking->driver_id ? (int) $booking->driver_id : null;
+        $driverAssignedOrChanged = $newDriverId !== null && $newDriverId !== $previousDriverId;
+
+        $newTripStatus = strtolower(trim((string) ($booking->trip_status ?? '')));
+        $tripStatusChanged = array_key_exists('trip_status', $validated)
+            && $newTripStatus !== ''
+            && $newTripStatus !== $previousTripStatus;
+
+        if ($driverAssignedOrChanged) {
+            // Run immediately so OK always triggers mail without needing a queue worker.
+            SendDriverAssignmentEmails::dispatchSync($booking->id);
+        }
+
+        if ($tripStatusChanged) {
+            SendTripStatusChangeEmails::dispatchSync(
+                $booking->id,
+                $previousTripStatus !== '' ? $previousTripStatus : null,
+                $newTripStatus
+            );
+        }
 
         return response()->json([
             'ok' => true,
             'row' => $this->mapDispatchRow($booking),
+            'driver_email_sent' => $driverAssignedOrChanged,
+            'status_email_sent' => $tripStatusChanged,
         ]);
     }
 
@@ -517,6 +562,8 @@ class DispatchController extends Controller
 
         $vehicleCode = (string) ($booking->vehicle?->vehicle_code ?? '');
         $vehicleName = (string) ($booking->vehicle?->vehicle_name ?? '');
+        $driverName = (string) ($booking->driver?->name ?? '');
+        $driverPicture = $booking->driver?->pictureUrl();
 
         return [
             'id' => $booking->id,
@@ -536,7 +583,9 @@ class DispatchController extends Controller
             'do_location' => (string) ($booking->dropoff_location ?? ''),
             'veh_code' => $vehicleCode,
             'vehicle_id' => $booking->vehicle_id,
-            'driver' => '',
+            'driver_id' => $booking->driver_id,
+            'driver' => $driverName,
+            'driver_picture' => $driverPicture,
             'car' => $vehicleName !== '' ? $vehicleName : $vehicleCode,
             'passenger_name' => $passengerName,
             'pax' => $booking->pax_count !== null ? $booking->pax_count : ($booking->passengers->count() ?: ''),

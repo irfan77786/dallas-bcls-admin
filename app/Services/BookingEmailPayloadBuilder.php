@@ -12,7 +12,7 @@ class BookingEmailPayloadBuilder
      */
     public static function build(Booking $booking): array
     {
-        $booking->loadMissing(['vehicle', 'passengers', 'booker', 'breakdown', 'accountSnapshot']);
+        $booking->loadMissing(['vehicle', 'passengers', 'booker', 'breakdown', 'accountSnapshot', 'driver']);
         $passenger = $booking->passengers->first();
         if (! $passenger) {
             throw new \RuntimeException('Booking has no passenger.');
@@ -21,6 +21,7 @@ class BookingEmailPayloadBuilder
         $fd = FlightDetail::where('passenger_id', $passenger->id)->first();
         $forOthers = (bool) $passenger->is_booking_for_others;
         $booker = $booking->booker;
+        $driver = $booking->driver;
 
         $pickupDate = $booking->pickup_date;
         if ($pickupDate instanceof \Carbon\Carbon) {
@@ -73,6 +74,23 @@ class BookingEmailPayloadBuilder
             ] : null,
             'service_option_label' => self::serviceOptionLabel($booking->service_option),
             'luggage_count' => $booking->luggage_count,
+            'driver' => $driver ? [
+                'id' => $driver->id,
+                'name' => $driver->name,
+                'phone' => $driver->phone,
+                'email' => $driver->email,
+                'address' => $driver->address,
+                'picture_url' => $driver->pictureUrl(),
+                'vehicle_type' => $driver->vehicle_type,
+                'car_make' => $driver->car_make,
+                'car_model' => $driver->car_model,
+                'year' => $driver->year,
+                'color' => $driver->color,
+                'capacity' => $driver->capacity,
+                'plate_number' => $driver->plate_number,
+                'vin' => $driver->vin,
+                'vehicle_label' => $driver->vehicleLabel(),
+            ] : null,
             'account' => [
                 'company_number' => $booking->accountSnapshot?->account_company_number,
                 'company_name' => $booking->accountSnapshot?->account_company_name,

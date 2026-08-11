@@ -18,6 +18,7 @@ use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\DispatchController;
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\DriverController;
 use App\Http\Controllers\StripeWebhookController;
 use Illuminate\Support\Facades\Artisan; 
 
@@ -100,6 +101,13 @@ Route::group(['middleware' => 'auth'], function () {
     Route::post('accounts', [AccountController::class, 'store'])->name('accounts.store');
     Route::put('accounts/{account}', [AccountController::class, 'update'])->name('accounts.update');
     Route::delete('accounts/{account}', [AccountController::class, 'destroy'])->name('accounts.destroy');
+
+    Route::get('drivers', [DriverController::class, 'index'])->name('drivers.index');
+    Route::get('drivers/data', [DriverController::class, 'data'])->name('drivers.data');
+    Route::get('drivers/{driver}/edit-data', [DriverController::class, 'forEdit'])->name('drivers.edit-data');
+    Route::post('drivers', [DriverController::class, 'store'])->name('drivers.store');
+    Route::post('drivers/{driver}/update', [DriverController::class, 'update'])->name('drivers.update');
+    Route::delete('drivers/{driver}', [DriverController::class, 'destroy'])->name('drivers.destroy');
 
     Route::get('/reservation', [ReservationController::class, 'create'])->name('reservation.create');
     Route::get('/reservation-v2', [ReservationController::class, 'createV2'])->name('reservation-v2');

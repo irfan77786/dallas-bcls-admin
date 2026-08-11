@@ -11,6 +11,7 @@ use App\Models\Account;
 use App\Models\Booker;
 use App\Models\Booking;
 use App\Models\BookingAccountSnapshot;
+use App\Models\Driver;
 use App\Models\FlightDetail;
 use App\Models\Payment;
 use App\Models\ReservationRoutingDraft;
@@ -158,6 +159,7 @@ class ReservationController extends Controller
             'pickup_location' => ['nullable', 'string', 'max:500'],
             'dropoff_location' => ['nullable', 'string', 'max:500'],
             'vehicle_id' => ['nullable', 'integer', 'exists:vehicles,id'],
+            'driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
             'service_option' => ['nullable', 'string', 'max:50'],
             'pax_count' => ['nullable', 'integer', 'min:1', 'max:99'],
             'luggage_count' => ['nullable', 'integer', 'min:0', 'max:99'],
@@ -200,6 +202,10 @@ class ReservationController extends Controller
         // Allow clearing PO/Client Ref on draft save when explicitly sent empty.
         if (array_key_exists('po_client_ref', $validated) && ! filled($validated['po_client_ref'])) {
             $updates['po_client_ref'] = null;
+        }
+
+        if (array_key_exists('driver_id', $validated) && Schema::hasColumn('bookings', 'driver_id')) {
+            $updates['driver_id'] = $validated['driver_id'] ?: null;
         }
 
         if ($updates) {
@@ -296,6 +302,7 @@ class ReservationController extends Controller
             'dropoff_location' => $booking->dropoff_location,
             // Don't force placeholder vehicle into the UI selector
             'vehicle_id' => null,
+            'driver_id' => Schema::hasColumn('bookings', 'driver_id') ? $booking->driver_id : null,
             'service_option' => $booking->service_option ?: 'point_to_point',
             'pax_count' => $booking->pax_count ?: 1,
             'luggage_count' => $booking->luggage_count ?: 0,
@@ -405,6 +412,8 @@ class ReservationController extends Controller
             'returnService',
             'breakdown',
             'accountSnapshot',
+            'driver',
+            'vehicle',
         ]);
 
         $routingDraft = is_array($booking->routing_information ?? null)
@@ -431,6 +440,9 @@ class ReservationController extends Controller
             ->when(Schema::hasColumn('vehicles', 'sort_order'), fn ($q) => $q->orderBy('sort_order'))
             ->orderBy('vehicle_name')
             ->get();
+        $drivers = Schema::hasTable('drivers')
+            ? Driver::query()->where('active', true)->orderBy('name')->get()
+            : collect();
         $googleMapsApiKey = config('services.google_maps.api_key');
         $stripePublishableKey = config('services.stripe.key');
         $stripeEnabled = (bool) (config('services.stripe.secret') && $stripePublishableKey);
@@ -452,7 +464,7 @@ class ReservationController extends Controller
         $childSeatPricePerSeatUsd = self::CHILD_SEAT_PRICE_PER_SEAT_USD;
 
         return view($view, array_merge(
-            compact('vehicles', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airlines', 'airports', 'fbos', 'accounts', 'childSeatPricePerSeatUsd', 'pageTitle'),
+            compact('vehicles', 'drivers', 'googleMapsApiKey', 'stripePublishableKey', 'stripeEnabled', 'airlines', 'airports', 'fbos', 'accounts', 'childSeatPricePerSeatUsd', 'pageTitle'),
             $extraData
         ));
     }
@@ -719,6 +731,7 @@ class ReservationController extends Controller
                     'booking_id' => $draftBooking?->booking_id ?: $customBookingId,
                     'user_id' => null,
                     'vehicle_id' => $vehicle->id,
+                    'driver_id' => ! empty($validated['driver_id']) ? (int) $validated['driver_id'] : null,
                     'pickup_location' => $trip['pickup_location'],
                     'dropoff_location' => $dropoff,
                     'stop_locations' => $stopLocations ?: null,
@@ -1097,6 +1110,9 @@ class ReservationController extends Controller
                 $updatePayload = [
                     'booker_id' => $booker?->id,
                     'vehicle_id' => $vehicle->id,
+                    'driver_id' => array_key_exists('driver_id', $validated)
+                        ? (! empty($validated['driver_id']) ? (int) $validated['driver_id'] : null)
+                        : $booking->driver_id,
                     'pickup_location' => $trip['pickup_location'],
                     'dropoff_location' => $dropoff,
                     'stop_locations' => $stopLocations ?: null,
@@ -1583,6 +1599,7 @@ class ReservationController extends Controller
     {
         $rules = [
             'vehicle_id' => ['required', 'exists:vehicles,id'],
+            'driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
             'account_id' => ['nullable', 'exists:accounts,id'],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
@@ -1696,6 +1713,7 @@ class ReservationController extends Controller
             'luggage_count' => $booking->luggage_count,
             'service_option' => $serviceOption,
             'vehicle_id' => $booking->vehicle_id,
+            'driver_id' => $booking->driver_id,
             'account_id' => $booking->accountSnapshot?->account_id,
             'account_company_number' => $booking->accountSnapshot?->account_company_number,
             'account_company_name' => $booking->accountSnapshot?->account_company_name,

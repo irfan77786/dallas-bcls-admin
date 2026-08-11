@@ -65,14 +65,12 @@
                 </div>
 
                 <!-- Manage Drivers -->
-                <!--<div class="nav-item {{ ($segment1 == 'manage-drivers') ? 'active' : '' }}">-->
-                <!--    <a href="#">-->
-                <!--        <i class="ik ik-user"></i>-->
-                <!--        <span>{{ __('Manage Cars') }}</span>-->
-                <!--    </a>-->
-                <!--</div>-->
-
-                <!-- Complaints & Suggestions -->
+                <div class="nav-item {{ $segment1 === 'drivers' ? 'active' : '' }}">
+                    <a href="{{ route('drivers.index') }}">
+                        <i class="ik ik-users"></i>
+                        <span>{{ __('Drivers') }}</span>
+                    </a>
+                </div>
 
                 <!-- Accounts -->
                 <div class="nav-item {{ ($segment1 == 'accounts') ? 'active' : '' }}">
