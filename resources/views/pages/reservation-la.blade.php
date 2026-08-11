@@ -2056,7 +2056,8 @@ window.initReservationPlaces = function () {
 
     function persistLaRoutingDraft() {
         syncLaRoutingHiddenInput();
-        if (!routingDraftUrl) return;
+        // Edit mode must not write into the new-reservation draft booking.
+        if (isEditMode || !routingDraftUrl || !laDraftBookingId) return;
         clearTimeout(laRoutingDraftTimer);
         laRoutingDraftTimer = setTimeout(function () {
             var rows = collectLaStoredRoutingRows();

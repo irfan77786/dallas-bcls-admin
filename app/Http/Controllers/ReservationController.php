@@ -47,16 +47,32 @@ class ReservationController extends Controller
 
     public function createLa()
     {
+        // Legacy shared table — never rehydrate from this.
+        $this->clearRoutingDraftForCurrentUser();
+
         $draftBooking = $this->getOrCreateLaDraftBooking();
+
+        // First open of Add Reservation in this browser session: wipe leftover
+        // routing on the open draft so old/common addresses do not reappear.
+        // Refresh keeps the same session key so in-progress autosave still restores.
+        if ($draftBooking) {
+            $sessionKey = 'la_add_reservation_draft_id';
+            $sessionDraftId = session($sessionKey);
+            if ((int) $sessionDraftId !== (int) $draftBooking->id) {
+                $draftBooking->forceFill([
+                    'routing_information' => [],
+                    'pickup_location' => '',
+                    'dropoff_location' => null,
+                    'stop_locations' => null,
+                ])->save();
+                $draftBooking->refresh();
+                session([$sessionKey => $draftBooking->id]);
+            }
+        }
 
         $routingDraft = [];
         if ($draftBooking && is_array($draftBooking->routing_information)) {
             $routingDraft = $draftBooking->routing_information;
-        } elseif (Schema::hasTable('reservation_routing_drafts') && auth()->check()) {
-            $draft = ReservationRoutingDraft::query()
-                ->where('user_id', auth()->id())
-                ->value('routing_information');
-            $routingDraft = is_array($draft) ? $draft : [];
         }
 
         return $this->reservationView('pages.reservation-la', 'Add Reservation', [
@@ -84,7 +100,23 @@ class ReservationController extends Controller
         ]);
 
         $routing = $this->cleanRoutingInformation($validated['routing_information'] ?? []);
-        $draft = $this->resolveLaDraftBooking($validated['draft_booking_id'] ?? null);
+
+        // Only persist onto the explicit draft booking for this reservation.
+        // Never fall back to "latest draft" or a shared per-user routing table —
+        // that copied addresses across reservations (e.g. edit → new add).
+        $draft = null;
+        $draftBookingId = isset($validated['draft_booking_id']) ? (int) $validated['draft_booking_id'] : 0;
+        if (
+            $draftBookingId > 0
+            && auth()->check()
+            && Schema::hasColumn('bookings', 'is_draft')
+        ) {
+            $draft = Booking::query()
+                ->where('id', $draftBookingId)
+                ->where('is_draft', true)
+                ->where('draft_user_id', auth()->id())
+                ->first();
+        }
 
         if ($draft) {
             $pickup = null;
@@ -124,13 +156,6 @@ class ReservationController extends Controller
 
             $draft->fill($payload);
             $draft->save();
-        }
-
-        if (Schema::hasTable('reservation_routing_drafts') && auth()->check()) {
-            ReservationRoutingDraft::query()->updateOrCreate(
-                ['user_id' => auth()->id()],
-                ['routing_information' => $routing]
-            );
         }
 
         return response()->json([
@@ -838,6 +863,7 @@ class ReservationController extends Controller
         }
 
         $this->clearRoutingDraftForCurrentUser();
+        session()->forget('la_add_reservation_draft_id');
 
         $passenger = $booking->passengers->first();
 
