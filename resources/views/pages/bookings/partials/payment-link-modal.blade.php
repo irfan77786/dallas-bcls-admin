@@ -149,11 +149,13 @@
     cursor: pointer;
 }
 .bookings-table .table-actions a.js-send-payment-link,
-.booking-mobile-card .table-actions a.js-send-payment-link {
+.booking-mobile-card .table-actions a.js-send-payment-link,
+.disp-grid a.js-send-payment-link {
     color: #28a745;
 }
 .bookings-table .table-actions a.js-send-payment-link.is-disabled,
 .booking-mobile-card .table-actions a.js-send-payment-link.is-disabled,
+.disp-grid a.js-send-payment-link.is-disabled,
 button.js-send-payment-link.is-disabled {
     color: #bcc1c6;
     opacity: 0.55;

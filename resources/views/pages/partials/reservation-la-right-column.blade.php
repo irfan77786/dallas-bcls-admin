@@ -306,23 +306,21 @@
                 </div>
 
                 @if(!empty($stripeEnabled))
-                    <input type="hidden" name="payment_method_id" id="payment_method_id" value="">
-                    <div class="la-right-field">
-                        <label for="card-name-reservation">Name on card <span class="text-danger">*</span></label>
-                        <input type="text" id="card-name-reservation" class="form-control" autocomplete="cc-name" placeholder="As shown on card">
-                    </div>
-                    <div class="la-right-field">
-                        <label>Card details <span class="text-danger">*</span></label>
-                        <div id="reservation-card-element" class="form-control"></div>
-                        <div id="reservation-card-errors" class="text-danger small mt-1"></div>
-                    </div>
+                    @include('pages.partials.reservation-stripe-card-fields', [
+                        'stripeEnabled' => $stripeEnabled,
+                        'isEditMode' => !empty($isEditMode),
+                        'bookingPaymentStatus' => $bookingPaymentStatus ?? '',
+                        'savedCardOnFile' => $savedCardOnFile ?? null,
+                    ])
                     <div class="la-right-payment-actions">
+                        @if(empty($isEditMode) || (!empty($isEditMode) && !in_array(strtolower(trim((string) ($bookingPaymentStatus ?? ''))), ['paid', 'authorized'], true)))
                         <button type="button" class="la-btn-pay-reservation" id="btn-reservation-pay">
-                            <span id="btn-reservation-text"><i class="bi bi-credit-card"></i> Pay &amp; create reservation</span>
+                            <span id="btn-reservation-text"><i class="bi bi-credit-card"></i> {{ !empty($isEditMode) ? 'Pay & update reservation' : 'Pay & create reservation' }}</span>
                             <span id="btn-reservation-spinner" class="spinner-border spinner-border-sm d-none ml-1" role="status" aria-hidden="true"></span>
                         </button>
+                        @endif
                         <button type="submit" name="save_without_pay" value="1" class="la-btn-save-without-pay" formnovalidate title="Save booking only — no charge">
-                            Save without pay
+                            {{ !empty($isEditMode) ? 'Update without pay' : 'Save without pay' }}
                         </button>
                     </div>
                 @else
@@ -343,6 +341,10 @@
     </div>
 
     <div class="la-right-footer">
+        @if(empty($isEditMode))
         <button type="submit" name="save_without_pay" value="1" class="la-btn-save-reservation" formnovalidate>SAVE RESERVATION</button>
+        @else
+        <button type="submit" class="la-btn-save-reservation">UPDATE RESERVATION</button>
+        @endif
     </div>
 </div>

@@ -25,6 +25,27 @@
         padding: 1.5rem;
     }
 
+    .reservation-new-card-entry {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    @media (max-width: 767px) {
+        .reservation-new-card-entry {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .reservation-saved-card-box .alert {
+        margin-bottom: 0.35rem;
+    }
+
+    .reservation-change-card-btn {
+        font-size: 0.875rem;
+    }
+
     .reservation-v2-intro {
         margin-bottom: 1.5rem;
     }
@@ -1017,20 +1038,12 @@ $canChargeOnEdit = $isEditMode && ! $hasLockedPayment;
                             This reservation is not paid yet. You can update the booking only, or charge the card and
                             update the reservation in one step.
                         </div>
-                        <input type="hidden" name="payment_method_id" id="payment_method_id" value="">
-                        <div class="form-row">
-                            <div class="form-group col-md-6">
-                                <label for="card-name-reservation">Name on card <span
-                                        class="text-danger">*</span></label>
-                                <input type="text" id="card-name-reservation" class="form-control"
-                                    autocomplete="cc-name" placeholder="As shown on card">
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Card details <span class="text-danger">*</span></label>
-                                <div id="reservation-card-element" class="form-control"></div>
-                                <div id="reservation-card-errors" class="text-danger small mt-1"></div>
-                            </div>
-                        </div>
+                        @include('pages.partials.reservation-stripe-card-fields', [
+                            'stripeEnabled' => $stripeEnabled,
+                            'isEditMode' => $isEditMode,
+                            'bookingPaymentStatus' => $bookingPaymentStatus,
+                            'savedCardOnFile' => $savedCardOnFile ?? null,
+                        ])
                         @elseif($canChargeOnEdit)
                         <div class="alert alert-info small">
                             This reservation is not paid yet. Stripe is not configured, so only booking details can be
@@ -1057,20 +1070,12 @@ $canChargeOnEdit = $isEditMode && ! $hasLockedPayment;
                             </button>
                         </div>
                         @elseif(!empty($stripeEnabled))
-                        <input type="hidden" name="payment_method_id" id="payment_method_id" value="">
-                        <div class="form-row">
-                            <div class="form-group col-md-6">
-                                <label for="card-name-reservation">Name on card <span
-                                        class="text-danger">*</span></label>
-                                <input type="text" id="card-name-reservation" class="form-control"
-                                    autocomplete="cc-name" placeholder="As shown on card" required>
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Card details <span class="text-danger">*</span></label>
-                                <div id="reservation-card-element" class="form-control"></div>
-                                <div id="reservation-card-errors" class="text-danger small mt-1"></div>
-                            </div>
-                        </div>
+                        @include('pages.partials.reservation-stripe-card-fields', [
+                            'stripeEnabled' => $stripeEnabled,
+                            'isEditMode' => $isEditMode,
+                            'bookingPaymentStatus' => $bookingPaymentStatus,
+                            'savedCardOnFile' => $savedCardOnFile ?? null,
+                        ])
 
                         <div class="d-flex flex-wrap align-items-center" style="gap: 0.5rem;">
                             <button type="button" class="btn btn-success btn-lg" id="btn-reservation-pay">
@@ -1117,6 +1122,9 @@ $canChargeOnEdit = $isEditMode && ! $hasLockedPayment;
 @endsection
 
 @push('script')
+@if(!empty($stripeEnabled))
+@include('pages.partials.reservation-stripe-card-scripts')
+@endif
 @if(!empty($googleMapsApiKey))
 <script>
     window.initReservationPlaces = function () {
@@ -1864,11 +1872,11 @@ $canChargeOnEdit = $isEditMode && ! $hasLockedPayment;
     }
 
     if (reservationStripeEnabled && typeof Stripe !== 'undefined') {
-        var stripe = Stripe(@json($stripePublishableKey ?? ''));
-        var elements = stripe.elements();
-        var card = elements.create('card', { style: { base: { fontSize: '16px', color: '#32325d' } } });
-        var cardEl = document.getElementById('reservation-card-element');
-        if (cardEl) card.mount('#reservation-card-element');
+        var stripeFlow = window.initReservationStripeCardFlow({
+            publishableKey: @json($stripePublishableKey ?? '')
+        });
+        var stripe = stripeFlow ? stripeFlow.stripe : Stripe(@json($stripePublishableKey ?? ''));
+        var card = stripeFlow ? stripeFlow.getCard() : null;
 
         function setPayLoading(on) {
             var btn = document.getElementById('btn-reservation-pay');
@@ -1917,12 +1925,6 @@ $canChargeOnEdit = $isEditMode && ! $hasLockedPayment;
                 var errEl = document.getElementById('reservation-card-errors');
                 if (errEl) errEl.textContent = '';
 
-                var nameInput = document.getElementById('card-name-reservation');
-                if (!nameInput || !nameInput.value.trim()) {
-                    if (errEl) errEl.textContent = 'Enter the name on card.';
-                    return;
-                }
-
                 if (!form.querySelector('input[name="vehicle_id"]').value) {
                     alert('Select a vehicle.');
                     return;
@@ -1930,20 +1932,23 @@ $canChargeOnEdit = $isEditMode && ! $hasLockedPayment;
 
                 setPayLoading(true);
 
-                var paymentMethodResult = await stripe.createPaymentMethod({
-                    type: 'card',
-                    card: card,
-                    billing_details: { name: nameInput.value.trim() }
-                });
+                if (stripeFlow && typeof stripeFlow.mountCardIfNeeded === 'function') {
+                    stripeFlow.mountCardIfNeeded();
+                    card = stripeFlow.getCard();
+                }
 
-                if (paymentMethodResult.error) {
-                    if (errEl) errEl.textContent = paymentMethodResult.error.message;
+                var paymentMethodId = typeof window.resolveReservationPaymentMethodId === 'function'
+                    ? await window.resolveReservationPaymentMethodId(stripe, card)
+                    : null;
+
+                if (!paymentMethodId) {
                     setPayLoading(false);
                     return;
                 }
 
                 var formData = new FormData(form);
-                formData.set('payment_method_id', paymentMethodResult.paymentMethod.id);
+                formData.set('payment_method_id', paymentMethodId);
+                formData.delete('save_without_pay');
 
                 try {
                     var response = await fetch(submitUrl, {

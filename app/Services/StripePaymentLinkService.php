@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendPaymentSuccessEmails;
 use App\Models\Booking;
 use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
@@ -123,6 +124,10 @@ class StripePaymentLinkService
             ? round(((int) $session->amount_total) / 100, 2)
             : round((float) $booking->total_price, 2);
 
+        $checkoutEmail = is_string($session->customer_email ?? null)
+            ? trim((string) $session->customer_email)
+            : null;
+
         DB::transaction(function () use ($booking, $session, $paymentIntentId, $amount) {
             $booking->payment_status = 'Paid';
             $booking->stripe_checkout_session_id = $session->id;
@@ -158,6 +163,14 @@ class StripePaymentLinkService
                 ]);
             }
         });
+
+        if (! $alreadyPaid) {
+            SendPaymentSuccessEmails::dispatchSync(
+                $booking->id,
+                $amount,
+                $checkoutEmail !== '' ? $checkoutEmail : null
+            );
+        }
 
         return $booking->fresh();
     }

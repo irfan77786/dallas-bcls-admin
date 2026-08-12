@@ -1301,6 +1301,9 @@
                 'drivers' => $drivers ?? collect(),
                 'stripeEnabled' => $stripeEnabled ?? false,
                 'childSeatPricePerSeatUsd' => $childSeatPricePerSeatUsd ?? 20,
+                'isEditMode' => $isEditMode,
+                'bookingPaymentStatus' => $bookingPaymentStatus ?? '',
+                'savedCardOnFile' => $savedCardOnFile ?? null,
             ])
         </div>
     </form>
@@ -1308,6 +1311,9 @@
 @endsection
 
 @push('script')
+@if(!empty($stripeEnabled))
+@include('pages.partials.reservation-stripe-card-scripts')
+@endif
 @if(!empty($googleMapsApiKey))
 <script>
 window.initReservationPlaces = function () {
@@ -2740,7 +2746,11 @@ window.initReservationPlaces = function () {
         return el ? (el.value || '').trim() : '';
     }
 
-    var LA_NOTES_STORAGE_KEY = 'dallas_bcls_la_reservation_notes';
+    var LA_NOTES_STORAGE_PREFIX = 'dallas_bcls_la_reservation_notes_';
+
+    function laNotesStorageKey() {
+        return laDraftBookingId ? (LA_NOTES_STORAGE_PREFIX + laDraftBookingId) : null;
+    }
 
     function collectLaNotesDraft() {
         var addTs = document.getElementById('la-note-add-ts');
@@ -2776,8 +2786,10 @@ window.initReservationPlaces = function () {
     }
 
     function saveLaNotesDraft() {
+        var key = laNotesStorageKey();
+        if (!key) return;
         try {
-            localStorage.setItem(LA_NOTES_STORAGE_KEY, JSON.stringify(collectLaNotesDraft()));
+            localStorage.setItem(key, JSON.stringify(collectLaNotesDraft()));
         } catch (e) {}
         syncLaNotesForSubmit();
         persistLaNotesToDraftBooking();
@@ -2844,8 +2856,10 @@ window.initReservationPlaces = function () {
     }
 
     function loadLaNotesDraft() {
+        var key = laNotesStorageKey();
+        if (!key) return null;
         try {
-            var raw = localStorage.getItem(LA_NOTES_STORAGE_KEY);
+            var raw = localStorage.getItem(key);
             if (!raw) return null;
             return JSON.parse(raw);
         } catch (e) {
@@ -2854,7 +2868,11 @@ window.initReservationPlaces = function () {
     }
 
     function clearLaNotesDraft() {
-        try { localStorage.removeItem(LA_NOTES_STORAGE_KEY); } catch (e) {}
+        var key = laNotesStorageKey();
+        if (!key) return;
+        try { localStorage.removeItem(key); } catch (e) {}
+        // Remove legacy shared key that copied notes across reservations.
+        try { localStorage.removeItem('dallas_bcls_la_reservation_notes'); } catch (e) {}
     }
 
     function buildLaCombinedNote() {
@@ -2951,11 +2969,11 @@ window.initReservationPlaces = function () {
     function initLaNotesSave() {
         var hiddenNote = document.getElementById('note');
         var serverNote = hiddenNote ? (hiddenNote.value || '').trim() : '';
-        var draft = loadLaNotesDraft();
+        var draft = (!isEditMode && laDraftBookingId) ? loadLaNotesDraft() : null;
 
         if (serverNote) {
             parseLaCombinedNoteIntoFields(serverNote);
-            // Fill any empty secondary boxes from local draft
+            // Same draft only — never merge notes from another reservation's local draft.
             if (draft) {
                 var fillIfEmpty = function (id, value) {
                     var el = document.getElementById(id);
@@ -2969,6 +2987,9 @@ window.initReservationPlaces = function () {
             }
         } else if (draft) {
             applyLaNotesDraft(draft);
+        } else if (!isEditMode) {
+            // Fresh add-reservation screen — ensure trip note starts empty.
+            applyLaNotesDraft({ trip: '', dispatch: '', partner: '', billto: '', addr: '', airport: '', addTs: false, hideCustomer: false });
         }
 
         syncLaNotesForSubmit();
@@ -3401,10 +3422,11 @@ window.initReservationPlaces = function () {
     syncAccountFromSelect();
 
     if (reservationStripeEnabled && typeof Stripe !== 'undefined') {
-        var stripe = Stripe(@json($stripePublishableKey ?? ''));
-        var card = stripe.elements().create('card', { style: { base: { fontSize: '14px' } } });
-        var cardEl = document.getElementById('reservation-card-element');
-        if (cardEl) card.mount('#reservation-card-element');
+        var stripeFlow = window.initReservationStripeCardFlow({
+            publishableKey: @json($stripePublishableKey ?? '')
+        });
+        var stripe = stripeFlow ? stripeFlow.stripe : Stripe(@json($stripePublishableKey ?? ''));
+        var card = stripeFlow ? stripeFlow.getCard() : null;
 
         var payBtn = document.getElementById('btn-reservation-pay');
         if (payBtn) {
@@ -3413,11 +3435,6 @@ window.initReservationPlaces = function () {
                 var spinner = document.getElementById('btn-reservation-spinner');
                 var btnText = document.getElementById('btn-reservation-text');
                 if (errEl) errEl.textContent = '';
-                var nameInput = document.getElementById('card-name-reservation');
-                if (!nameInput || !nameInput.value.trim()) {
-                    if (errEl) errEl.textContent = 'Enter name on card.';
-                    return;
-                }
                 if (!document.getElementById('vehicle-id').value) {
                     alert('Select a vehicle.');
                     return;
@@ -3435,12 +3452,16 @@ window.initReservationPlaces = function () {
                 if (spinner) spinner.classList.remove('d-none');
                 if (btnText) btnText.style.opacity = '0.7';
 
-                var pm = await stripe.createPaymentMethod({
-                    type: 'card', card: card,
-                    billing_details: { name: nameInput.value.trim() }
-                });
-                if (pm.error) {
-                    if (errEl) errEl.textContent = pm.error.message;
+                if (stripeFlow && typeof stripeFlow.mountCardIfNeeded === 'function') {
+                    stripeFlow.mountCardIfNeeded();
+                    card = stripeFlow.getCard();
+                }
+
+                var paymentMethodId = typeof window.resolveReservationPaymentMethodId === 'function'
+                    ? await window.resolveReservationPaymentMethodId(stripe, card)
+                    : null;
+
+                if (!paymentMethodId) {
                     payBtn.disabled = false;
                     if (spinner) spinner.classList.add('d-none');
                     if (btnText) btnText.style.opacity = '';
@@ -3448,7 +3469,7 @@ window.initReservationPlaces = function () {
                 }
 
                 var fd = new FormData(form);
-                fd.set('payment_method_id', pm.paymentMethod.id);
+                fd.set('payment_method_id', paymentMethodId);
                 fd.delete('save_without_pay');
 
                 try {
@@ -3487,7 +3508,7 @@ window.initReservationPlaces = function () {
         }
     }
 
-    form.addEventListener('submit', function () {
+    form.addEventListener('submit', function (e) {
         if (typeof window.syncLaIntlPhoneValues === 'function') window.syncLaIntlPhoneValues();
         if (typeof window.syncLaRightFields === 'function') window.syncLaRightFields();
         if (typeof window.prepareLaChildSeatForSubmit === 'function') window.prepareLaChildSeatForSubmit();
@@ -3497,6 +3518,11 @@ window.initReservationPlaces = function () {
         if (typeof syncLaStopLocationsHidden === 'function') syncLaStopLocationsHidden();
         if (typeof syncLaNotesForSubmit === 'function') syncLaNotesForSubmit();
         if (typeof saveLaNotesDraft === 'function') saveLaNotesDraft();
+
+        var submitter = e.submitter;
+        if (!isEditMode && submitter && submitter.name === 'save_without_pay') {
+            if (typeof clearLaNotesDraft === 'function') clearLaNotesDraft();
+        }
     });
 
     if (isEmbed) {

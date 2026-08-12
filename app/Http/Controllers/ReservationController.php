@@ -64,6 +64,7 @@ class ReservationController extends Controller
                     'pickup_location' => '',
                     'dropoff_location' => null,
                     'stop_locations' => null,
+                    'note' => null,
                 ])->save();
                 $draftBooking->refresh();
                 session([$sessionKey => $draftBooking->id]);
@@ -426,6 +427,7 @@ class ReservationController extends Controller
             'formMethod' => 'PUT',
             'formDefaults' => $this->reservationFormDefaults($booking),
             'bookingPaymentStatus' => $booking->payment_status,
+            'savedCardOnFile' => $this->savedStripeCardSummary($booking),
         ]);
     }
 
@@ -455,6 +457,7 @@ class ReservationController extends Controller
             'draftBooking' => null,
             'nextConfirmationNumber' => $booking->booking_id,
             'bookingPaymentStatus' => $booking->payment_status,
+            'savedCardOnFile' => $this->savedStripeCardSummary($booking),
             'editingBooking' => $booking,
         ]);
     }
@@ -868,6 +871,14 @@ class ReservationController extends Controller
         $passenger = $booking->passengers->first();
 
         if ($saveWithoutPay) {
+            $this->maybeStoreStripePaymentMethodWithoutCharge(
+                $booking,
+                $validated['payment_method_id'] ?? null,
+                $validated,
+                $forOthers,
+                $stripeSecret
+            );
+
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true,
@@ -1004,9 +1015,10 @@ class ReservationController extends Controller
         $this->normalizeReservationRequest($request);
 
         $trip = $this->validateTrip($request);
+        $saveWithoutPay = $request->boolean('save_without_pay');
         $validated = $request->validate($this->reservationRules($request, false));
         $vehicle = Vehicle::with(['carSeat'])->findOrFail($validated['vehicle_id']);
-        $attemptPayment = filled($request->input('payment_method_id'));
+        $attemptPayment = filled($request->input('payment_method_id')) && ! $saveWithoutPay;
 
         if ($trip['service_type'] === 'hourlyHire') {
             $breakdown = $this->pricing->calculateDistanceWithStops(
@@ -1245,6 +1257,17 @@ class ReservationController extends Controller
             report($e);
 
             return back()->withErrors(['save' => 'Could not update reservation: ' . $e->getMessage()])->withInput();
+        }
+
+        $stripeSecret = config('services.stripe.secret');
+        if (! $attemptPayment) {
+            $this->maybeStoreStripePaymentMethodWithoutCharge(
+                $booking->fresh(),
+                $request->input('payment_method_id'),
+                $validated,
+                $forOthers,
+                $stripeSecret
+            );
         }
 
         if ($attemptPayment) {
@@ -1543,6 +1566,94 @@ class ReservationController extends Controller
         }
 
         return $booking->payments()->whereIn('payment_status', ['Paid', 'Authorized'])->exists();
+    }
+
+    /**
+     * @return array{payment_method_id: string, brand: string, last4: string, exp_month: int|null, exp_year: int|null, name: string}|null
+     */
+    private function savedStripeCardSummary(Booking $booking): ?array
+    {
+        if (! filled($booking->stripe_payment_method_id) || ! config('services.stripe.secret')) {
+            return null;
+        }
+
+        try {
+            \Stripe\Stripe::setApiKey(config('services.stripe.secret'));
+            $paymentMethod = \Stripe\PaymentMethod::retrieve($booking->stripe_payment_method_id);
+            if (($paymentMethod->type ?? '') !== 'card' || empty($paymentMethod->card)) {
+                return null;
+            }
+
+            return [
+                'payment_method_id' => (string) $paymentMethod->id,
+                'brand' => ucfirst((string) ($paymentMethod->card->brand ?? 'Card')),
+                'last4' => (string) ($paymentMethod->card->last4 ?? ''),
+                'exp_month' => isset($paymentMethod->card->exp_month) ? (int) $paymentMethod->card->exp_month : null,
+                'exp_year' => isset($paymentMethod->card->exp_year) ? (int) $paymentMethod->card->exp_year : null,
+                'name' => (string) ($paymentMethod->billing_details->name ?? ''),
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('Could not load saved Stripe card for reservation edit', [
+                'booking_id' => $booking->booking_id,
+                'payment_method_id' => $booking->stripe_payment_method_id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function maybeStoreStripePaymentMethodWithoutCharge(
+        Booking $booking,
+        mixed $paymentMethodId,
+        array $validated,
+        bool $forOthers,
+        ?string $stripeSecret
+    ): void {
+        $pmId = trim((string) ($paymentMethodId ?? ''));
+        if ($pmId === '' || ! $stripeSecret || $this->bookingHasLockedPayment($booking)) {
+            return;
+        }
+
+        if ($pmId === (string) ($booking->stripe_payment_method_id ?? '')) {
+            return;
+        }
+
+        try {
+            \Stripe\Stripe::setApiKey($stripeSecret);
+            $this->storeStripePaymentMethodOnBooking($booking, $pmId, $validated, $forOthers);
+        } catch (\Throwable $e) {
+            Log::error('Failed to store Stripe payment method without charge', [
+                'booking_id' => $booking->booking_id,
+                'payment_method_id' => $pmId,
+                'message' => $e->getMessage(),
+            ]);
+            report($e);
+        }
+    }
+
+    private function storeStripePaymentMethodOnBooking(
+        Booking $booking,
+        string $paymentMethodId,
+        array $validated,
+        bool $forOthers
+    ): void {
+        $customerDetails = $this->stripeCustomerDetails($validated, $forOthers);
+        $customer = $this->findOrCreateStripeCustomer(
+            $customerDetails['email'],
+            $customerDetails['name'],
+            $customerDetails['phone'],
+            $booking->stripe_customer_id
+        );
+
+        $paymentMethod = \Stripe\PaymentMethod::retrieve($paymentMethodId);
+        if (empty($paymentMethod->customer)) {
+            $paymentMethod->attach(['customer' => $customer->id]);
+        }
+
+        $booking->stripe_customer_id = $customer->id;
+        $booking->stripe_payment_method_id = $paymentMethodId;
+        $booking->save();
     }
 
     private function stripeCustomerDetails(array $validated, bool $forOthers): array

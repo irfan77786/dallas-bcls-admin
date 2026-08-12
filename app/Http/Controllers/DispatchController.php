@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\SendDriverAssignmentEmails;
-use App\Jobs\SendTripStatusChangeEmails;
 use App\Models\Booking;
 use App\Models\Driver;
 use App\Models\Vehicle;
@@ -83,7 +82,7 @@ class DispatchController extends Controller
 
         $query = Booking::query()
             ->notDraft()
-            ->with(['vehicle', 'passengers', 'accountSnapshot', 'returnService', 'driver']);
+            ->with(['vehicle', 'passengers', 'booker', 'accountSnapshot', 'returnService', 'driver']);
 
         if ($dateFrom && $dateTo) {
             $query->whereDate('pickup_date', '>=', $dateFrom->toDateString())
@@ -406,7 +405,6 @@ class DispatchController extends Controller
         ]);
 
         $previousDriverId = $booking->driver_id ? (int) $booking->driver_id : null;
-        $previousTripStatus = strtolower(trim((string) ($booking->trip_status ?? '')));
 
         if (array_key_exists('pickup_date', $validated) && filled($validated['pickup_date'])) {
             try {
@@ -445,34 +443,20 @@ class DispatchController extends Controller
         }
 
         $booking->save();
-        $booking->load(['vehicle', 'passengers', 'accountSnapshot', 'returnService', 'driver']);
+        $booking->load(['vehicle', 'passengers', 'booker', 'accountSnapshot', 'returnService', 'driver']);
 
         $newDriverId = $booking->driver_id ? (int) $booking->driver_id : null;
         $driverAssignedOrChanged = $newDriverId !== null && $newDriverId !== $previousDriverId;
-
-        $newTripStatus = strtolower(trim((string) ($booking->trip_status ?? '')));
-        $tripStatusChanged = array_key_exists('trip_status', $validated)
-            && $newTripStatus !== ''
-            && $newTripStatus !== $previousTripStatus;
 
         if ($driverAssignedOrChanged) {
             // Run immediately so OK always triggers mail without needing a queue worker.
             SendDriverAssignmentEmails::dispatchSync($booking->id);
         }
 
-        if ($tripStatusChanged) {
-            SendTripStatusChangeEmails::dispatchSync(
-                $booking->id,
-                $previousTripStatus !== '' ? $previousTripStatus : null,
-                $newTripStatus
-            );
-        }
-
         return response()->json([
             'ok' => true,
             'row' => $this->mapDispatchRow($booking),
             'driver_email_sent' => $driverAssignedOrChanged,
-            'status_email_sent' => $tripStatusChanged,
         ]);
     }
 
@@ -499,6 +483,14 @@ class DispatchController extends Controller
             ? trim(($passenger->first_name ?? '') . ' ' . ($passenger->last_name ?? ''))
             : '';
         $passengerPhone = $passenger->phone_number ?? '';
+        $passengerEmail = trim((string) ($passenger->email ?? ''));
+        if ($passengerEmail === '' && $booking->booker) {
+            $passengerEmail = trim((string) ($booking->booker->email ?? ''));
+        }
+
+        $paymentStatus = strtolower(trim((string) ($booking->payment_status ?? '')));
+        $canSendPaymentLink = ! in_array($paymentStatus, ['paid', 'authorized'], true)
+            && (float) ($booking->total_price ?? 0) >= 0.5;
 
         $tripStatuses = self::tripStatusOptions();
         $storedStatus = strtolower(trim((string) ($booking->trip_status ?? '')));
@@ -592,6 +584,8 @@ class DispatchController extends Controller
             'lug' => $booking->luggage_count !== null ? $booking->luggage_count : '',
             'priority' => '',
             'passenger_phone' => $passengerPhone,
+            'passenger_email' => $passengerEmail,
+            'can_send_payment_link' => $canSendPaymentLink,
             'is_round_trip' => filled($booking->return_service_id),
             'total' => (float) ($booking->total_price ?? 0),
             'payment_status' => (string) ($booking->payment_status ?? ''),

@@ -915,6 +915,38 @@
         border-color: #d1d5db;
     }
 
+    .disp-col-paylink {
+        width: 34px;
+        text-align: center;
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+    }
+
+    .disp-paylink-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        color: #16a34a;
+        text-decoration: none;
+        border-radius: 3px;
+        font-size: 14px;
+        line-height: 1;
+    }
+
+    .disp-paylink-btn:hover {
+        color: #15803d;
+        background: rgba(22, 163, 74, 0.12);
+    }
+
+    .disp-paylink-btn.is-disabled {
+        color: #9ca3af;
+        opacity: 0.55;
+        pointer-events: none;
+        cursor: not-allowed;
+    }
+
     .disp-tooltip {
         position: absolute;
         z-index: 50;
@@ -1167,6 +1199,7 @@
                         <th class="disp-col-rnd">Rnd</th>
                         <th>Total <span class="sort">↕</span></th>
                         <th>Payment <span class="sort">↕</span></th>
+                        <th class="disp-col-paylink" title="Send payment link">Pay</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1264,9 +1297,23 @@
                                     {{ $row['payment_status'] !== '' ? $row['payment_status'] : '—' }}
                                 </span>
                             </td>
+                            <td class="disp-col-paylink">
+                                <a href="#"
+                                   class="disp-paylink-btn js-send-payment-link {{ !empty($row['can_send_payment_link']) ? '' : 'is-disabled' }}"
+                                   title="{{ !empty($row['can_send_payment_link']) ? 'Send payment link' : 'Payment link unavailable' }}"
+                                   data-booking-id="{{ $row['id'] }}"
+                                   data-public-id="{{ $row['conf'] }}"
+                                   data-email="{{ $row['passenger_email'] ?? '' }}"
+                                   data-customer-name="{{ $row['passenger_name'] ?? '' }}"
+                                   data-amount="{{ number_format((float) $row['total'], 2, '.', '') }}"
+                                   data-status="{{ $row['payment_status'] !== '' ? $row['payment_status'] : 'Unknown' }}"
+                                   aria-label="Send payment link">
+                                    <i class="bi bi-credit-card-fill"></i>
+                                </a>
+                            </td>
                         </tr>
                         <tr class="disp-detail-row" data-detail-for="{{ $row['id'] }}" hidden>
-                            <td colspan="20">
+                            <td colspan="21">
                                 <form
                                     class="disp-inline-form"
                                     data-inline-form="{{ $row['id'] }}"
@@ -2095,15 +2142,10 @@
                 inlineForm.setAttribute('data-initial-trip-status', rowData && rowData.status_key ? String(rowData.status_key) : nextStatus);
 
                 var driverEmailSent = !!result.data.driver_email_sent;
-                var statusEmailSent = !!result.data.status_email_sent;
-                var emailSent = driverEmailSent || statusEmailSent;
 
-                if (emailSent && typeof Swal !== 'undefined') {
+                if (driverEmailSent && typeof Swal !== 'undefined') {
                     var title = 'Successfully sent';
-                    var textParts = [];
-                    if (driverEmailSent) textParts.push('Driver assignment email');
-                    if (statusEmailSent) textParts.push('Trip status update email');
-                    var text = textParts.join(' and ') + ' sent to passenger and admin.';
+                    var text = 'Driver assignment email sent to passenger and admin.';
                     if (msg) {
                         msg.textContent = text;
                         msg.classList.add('is-visible', 'is-success');
@@ -2161,4 +2203,5 @@
     });
 })();
 </script>
+@include('pages.bookings.partials.payment-link-modal')
 @endpush
