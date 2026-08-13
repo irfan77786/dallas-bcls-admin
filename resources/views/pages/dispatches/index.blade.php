@@ -5,23 +5,55 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
+    /* Edge-to-edge LA dispatch look — override theme gutters on this page only */
+    body:has(.disp-shell) .wrapper.layout-topnav .page-wrap .main-content {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        background: #fff;
+    }
+
+    body:has(.disp-shell) .wrapper.layout-topnav .footer {
+        display: none;
+    }
+
     .main-content .container-fluid.disp-shell {
         max-width: none;
         width: 100%;
         margin: 0;
-        padding: 0.35rem 0.5rem 0.75rem;
+        padding: 0;
+    }
+
+    /* Bootstrap container-fluid gutters off — full bleed left/right */
+    .container-fluid.disp-shell {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    /* Fallback when :has() is unavailable */
+    body.disp-page .wrapper.layout-topnav .page-wrap .main-content {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        background: #fff;
+    }
+
+    body.disp-page .wrapper.layout-topnav .footer {
+        display: none;
     }
 
     .disp-toolbar {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 0.65rem 1rem;
-        padding: 0.45rem 0.35rem 0.55rem;
-        background: #f3f4f6;
-        border: 1px solid #d1d5db;
-        border-bottom: 0;
-        font-size: 15px;
+        gap: 0.5rem 0.85rem;
+        padding: 0.35rem 0.5rem;
+        background: #ececec;
+        border: 0;
+        border-bottom: 1px solid #b0b0b0;
+        font-size: 13px;
         color: #222;
     }
 
@@ -306,10 +338,10 @@
 
     .disp-advanced-panel {
         display: none;
-        border: 1px solid #d1d5db;
-        border-top: 0;
-        background: #fafafa;
-        padding: 10px 12px 12px;
+        border: 0;
+        border-bottom: 1px solid #b0b0b0;
+        background: #f5f5f5;
+        padding: 8px 10px 10px;
     }
 
     .disp-advanced-panel.is-open {
@@ -457,18 +489,21 @@
     }
 
     .disp-grid-wrap {
-        border: 1px solid #9ca3af;
+        border: 0;
         overflow: auto;
         background: #fff;
-        max-height: calc(100vh - 160px);
+        max-height: calc(100vh - 112px);
+        width: 100%;
     }
 
     .disp-grid {
         width: 100%;
+        min-width: 100%;
         border-collapse: collapse;
+        border-spacing: 0;
         table-layout: auto;
         font-family: Tahoma, "Segoe UI", Arial, sans-serif;
-        font-size: 14px;
+        font-size: 12px;
         white-space: nowrap;
     }
 
@@ -476,28 +511,44 @@
         position: sticky;
         top: 0;
         z-index: 2;
-        background: #6b7280;
+        background: #5a5a5a;
         color: #fff;
-        font-weight: 500;
-        font-size: 14px;
-        padding: 5px 6px;
-        border: 1px solid #4b5563;
+        font-weight: 700;
+        font-size: 11px;
+        letter-spacing: 0.01em;
+        padding: 4px 5px;
+        border: 0;
+        border-right: 1px solid #484848;
+        border-bottom: 1px solid #3f3f3f;
         text-align: left;
         user-select: none;
+        white-space: nowrap;
+    }
+
+    .disp-grid thead th:last-child {
+        border-right: 0;
     }
 
     .disp-grid thead th .sort {
-        opacity: 0.75;
+        opacity: 0.85;
         margin-left: 2px;
-        font-size: 12px;
+        font-size: 10px;
+        font-weight: 400;
     }
 
     .disp-grid tbody td {
-        padding: 3px 6px;
-        border: 1px solid #d1d5db;
+        padding: 2px 5px;
+        border: 0;
+        border-right: 1px solid rgba(0, 0, 0, 0.08);
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
         vertical-align: middle;
         color: #111;
-        line-height: 1.25;
+        line-height: 1.2;
+        height: 22px;
+    }
+
+    .disp-grid tbody td:last-child {
+        border-right: 0;
     }
 
     .disp-grid tbody tr.disp-data-row {
@@ -505,9 +556,8 @@
     }
 
     .disp-grid tbody tr.disp-data-row:hover td {
-        filter: none;
-        outline: 1px solid rgba(0, 0, 0, 0.12);
-        outline-offset: -1px;
+        filter: brightness(0.97);
+        outline: none;
     }
 
     /* Status row colors — sampled from LA dispatch screenshot */
@@ -552,7 +602,7 @@
     .disp-grid tbody tr td.disp-loc-hl,
     .disp-grid tbody tr:nth-child(even) td.disp-loc-hl,
     .disp-grid tbody tr.disp-data-row:hover td.disp-loc-hl {
-        background: #fff467 !important;
+        background: #ffff66 !important;
         font-weight: 500;
         filter: none;
     }
@@ -587,12 +637,12 @@
 
     .disp-icon-note {
         color: #ca8a04;
-        font-size: 16px;
+        font-size: 13px;
     }
 
     .disp-icon-phone {
         color: #374151;
-        font-size: 14px;
+        font-size: 12px;
         margin-right: 2px;
     }
 
@@ -605,10 +655,10 @@
         padding: 2rem;
         text-align: center;
         color: #6b7280;
-        font-size: 16px;
+        font-size: 14px;
         background: #fff;
-        border: 1px solid #9ca3af;
-        border-top: 0;
+        border: 0;
+        border-top: 1px solid #b0b0b0;
     }
 
     .disp-detail-row td {
@@ -872,21 +922,21 @@
         border-radius: 2px;
     }
 
-    .disp-col-grid { width: 28px; text-align: center; }
+    .disp-col-grid { width: 22px; text-align: center; }
     .disp-col-status { font-weight: 500; }
-    .disp-col-mu { width: 42px; text-align: center; }
-    .disp-col-rnd { width: 28px; text-align: center; }
+    .disp-col-mu { width: 36px; text-align: center; }
+    .disp-col-rnd { width: 24px; text-align: center; }
     .disp-col-pax, .disp-col-lug { text-align: center; }
     .disp-col-total { font-weight: 500; white-space: nowrap; }
 
     .disp-pay-badge {
         display: inline-flex;
         align-items: center;
-        padding: 1px 7px;
-        border-radius: 10px;
-        font-size: 13px;
+        padding: 0 5px;
+        border-radius: 8px;
+        font-size: 11px;
         font-weight: 500;
-        line-height: 1.4;
+        line-height: 1.35;
         white-space: nowrap;
         border: 1px solid transparent;
     }
@@ -1179,7 +1229,7 @@
             <table class="disp-grid" id="disp-grid">
                 <thead>
                     <tr>
-                        <th class="disp-col-grid">Grid</th>
+                        <th class="disp-col-grid">iGrid</th>
                         <th>Svc Type <span class="sort">↕</span></th>
                         <th>Conf# <span class="sort">↕</span></th>
                         <th>PO/Client Ref# <span class="sort">↕</span></th>
@@ -1433,6 +1483,8 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 (function () {
+    document.body.classList.add('disp-page');
+
     var form = document.getElementById('disp-filter-form');
     var dateInput = document.getElementById('disp-date');
     var dateDisplay = document.getElementById('disp-date-display');
