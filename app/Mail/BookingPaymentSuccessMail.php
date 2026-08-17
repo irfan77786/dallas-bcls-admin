@@ -13,18 +13,16 @@ class BookingPaymentSuccessMail extends Mailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        public array $payload,
-        public bool $isAdmin = false
+        public array $payload
     ) {
     }
 
     public function envelope(): Envelope
     {
         $bookingId = $this->payload['booking_id'] ?? '';
-        $prefix = $this->isAdmin ? '[Admin] ' : '';
 
         return new Envelope(
-            subject: $prefix . 'Payment received — Reservation #' . $bookingId
+            subject: 'Payment received — Reservation #' . $bookingId
         );
     }
 
@@ -32,10 +30,7 @@ class BookingPaymentSuccessMail extends Mailable
     {
         return new Content(
             view: 'emails.booking-payment-success',
-            with: [
-                'payload' => $this->payload,
-                'isAdmin' => $this->isAdmin,
-            ]
+            with: ['payload' => $this->payload]
         );
     }
 }

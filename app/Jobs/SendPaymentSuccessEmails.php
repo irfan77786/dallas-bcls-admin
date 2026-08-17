@@ -64,13 +64,15 @@ class SendPaymentSuccessEmails implements ShouldQueue
             $customerEmail = trim((string) ($passenger->email ?? ''));
         }
         if ($customerEmail !== '' && filter_var($customerEmail, FILTER_VALIDATE_EMAIL)) {
-            $recipients[] = ['email' => $customerEmail, 'isAdmin' => false];
+            $recipients[] = $customerEmail;
         }
 
         $adminEmail = trim((string) config('mail.admin_email', env('ADMIN_EMAIL_ADDRESS')));
         if ($adminEmail !== '' && filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
-            $recipients[] = ['email' => $adminEmail, 'isAdmin' => true];
+            $recipients[] = $adminEmail;
         }
+
+        $recipients = array_values(array_unique(array_map('strtolower', $recipients)));
 
         if ($recipients === []) {
             Log::warning('SendPaymentSuccessEmails: no valid recipients', [
@@ -80,19 +82,16 @@ class SendPaymentSuccessEmails implements ShouldQueue
             return;
         }
 
-        foreach ($recipients as $recipient) {
+        foreach ($recipients as $email) {
             try {
-                Mail::to($recipient['email'])->send(
-                    new BookingPaymentSuccessMail($payload, $recipient['isAdmin'])
-                );
+                Mail::to($email)->send(new BookingPaymentSuccessMail($payload));
                 Log::info('Payment success email sent', [
-                    'to' => $recipient['email'],
+                    'to' => $email,
                     'booking_id' => $booking->booking_id,
-                    'is_admin' => $recipient['isAdmin'],
                 ]);
             } catch (\Throwable $e) {
                 Log::error('Payment success email failed', [
-                    'to' => $recipient['email'],
+                    'to' => $email,
                     'booking_id' => $booking->booking_id,
                     'message' => $e->getMessage(),
                 ]);
