@@ -157,6 +157,10 @@
         display: none;
     }
 
+    .disp-date-range-panel.is-specific .disp-date-range-actions {
+        display: none;
+    }
+
     .disp-date-range-panel[hidden] { display: none !important; }
 
     .disp-date-cals {
@@ -1594,6 +1598,9 @@
                             rangeState.viewStart = new Date(picked.getFullYear(), picked.getMonth(), 1);
                             if (dateRangePanel && dateRangePanel.classList.contains('is-specific')) {
                                 rangeState.end = new Date(picked.getTime());
+                                var ymd = toYmd(picked);
+                                applyDatePreset('specific', { date: ymd, from: ymd, to: ymd });
+                                return;
                             } else if (rangeState.end < rangeState.start) {
                                 rangeState.end = new Date(picked.getTime());
                             }
