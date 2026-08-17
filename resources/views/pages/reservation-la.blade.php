@@ -1385,10 +1385,8 @@ window.initReservationPlaces = function () {
                 }
             }
         }
-        if (locationName && place.name) {
-            if (!input || input.id === 'la-addr-location-name' || !locationName.value.trim()) {
-                locationName.value = place.name;
-            }
+        if (locationName && place.name && input && input.id === 'la-addr-location-name') {
+            locationName.value = place.name;
         }
         if (street2) street2.value = '';
     }
@@ -1923,12 +1921,25 @@ window.initReservationPlaces = function () {
             return fboBits.join(' ').trim() || data.street1 || 'FBO';
         }
         var bits = [];
-        var head = data.locationName || data.street1;
-        if (head) bits.push(head);
-        if (data.street1 && data.locationName && data.street1 !== data.locationName) bits.push(data.street1);
-        if (data.city) bits.push(data.city);
-        if (data.state) bits.push(data.state);
-        if (data.zip) bits.push(data.zip);
+        var seen = '';
+        function pushUnique(part) {
+            part = (part || '').trim();
+            if (!part) return;
+            var lower = part.toLowerCase();
+            if (seen.indexOf(lower) !== -1) return;
+            if (lower.indexOf(seen) !== -1 && seen !== '') {
+                bits = [part];
+                seen = lower;
+                return;
+            }
+            bits.push(part);
+            seen = (seen + ' ' + lower).trim();
+        }
+        pushUnique(data.locationName);
+        pushUnique(data.street1);
+        pushUnique(data.city);
+        pushUnique(data.state);
+        pushUnique(data.zip);
         return bits.join(' ').trim();
     }
 
@@ -1947,13 +1958,21 @@ window.initReservationPlaces = function () {
             return parts.join(', ').trim() || buildLaRoutingLabel(data);
         }
         var parts = [];
-        if (data.locationName) parts.push(data.locationName);
-        if (data.tailNumber) parts.push('Tail# ' + data.tailNumber);
-        if (data.street1) parts.push(data.street1);
-        if (data.street2) parts.push(data.street2);
+        function pushPart(part) {
+            part = (part || '').trim();
+            if (!part) return;
+            var lower = part.toLowerCase();
+            var joined = parts.join(', ').toLowerCase();
+            if (joined.indexOf(lower) !== -1) return;
+            parts.push(part);
+        }
+        pushPart(data.locationName);
+        pushPart(data.tailNumber ? ('Tail# ' + data.tailNumber) : '');
+        pushPart(data.street1);
+        pushPart(data.street2);
         var cityLine = [data.city, data.state, data.zip].filter(Boolean).join(', ');
-        if (cityLine) parts.push(cityLine);
-        if (data.country && data.country !== 'United States') parts.push(data.country);
+        pushPart(cityLine);
+        if (data.country && data.country !== 'United States') pushPart(data.country);
         return parts.join(', ').trim() || data.street1 || data.locationName;
     }
 
@@ -1980,6 +1999,12 @@ window.initReservationPlaces = function () {
         if (type === 'pickup' || type === 'dropoff') {
             var existing = list.querySelector('.la-routing-stored-row[data-routing-type="' + type + '"]');
             if (existing) existing.remove();
+        } else {
+            var duplicate = null;
+            list.querySelectorAll('.la-routing-stored-row[data-routing-type="' + type + '"]').forEach(function (row) {
+                if ((row.getAttribute('data-submit-value') || '') === (submitValue || '')) duplicate = row;
+            });
+            if (duplicate) duplicate.remove();
         }
 
         var prefix = LA_ROUTING_PREFIX[type] || 'PU';
@@ -2477,22 +2502,6 @@ window.initReservationPlaces = function () {
             var typeEl = document.querySelector('input[name="la_routing_type"]:checked');
             var type = typeEl ? typeEl.value : 'pickup';
             addLaRoutingEntry(type, { silentEmpty: false });
-        });
-
-        document.querySelectorAll('input[name="la_routing_type"]').forEach(function (radio) {
-            radio.addEventListener('click', function () {
-                var panel = getActiveAddrPanel();
-                if (panel === 'airport') {
-                    if (!laAirportFormHasData()) return;
-                } else if (panel === 'fbo') {
-                    if (!laFboFormHasData()) return;
-                } else if (panel === 'address') {
-                    if (!laAddressFormHasData()) return;
-                } else {
-                    return;
-                }
-                addLaRoutingEntry(radio.value, { silentEmpty: true });
-            });
         });
 
         if (Array.isArray(laRoutingDraft) && laRoutingDraft.length) {
