@@ -1,4 +1,4 @@
-{{-- Placed after FIFA addendum when using split policy partials --}}
+{{-- Closing block after the cancellation policy --}}
     <div class="sections section-light">
       <h2>Thank you for choosing Dallas Black Cars Limo Service.</h2>
       <div class="section-content">

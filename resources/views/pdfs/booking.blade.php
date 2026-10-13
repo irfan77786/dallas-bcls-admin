@@ -525,7 +525,6 @@
   </div>
 
   @include('pdfs.partials.legacy-cancellation-policy-pdf')
-  @include('pdfs.partials.fifa-2026-event-policy-pdf')
   @include('pdfs.partials.booking-pdf-thank-you-closing')
 
     <footer style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee; text-align: center; font-size: 11px; color: #666;">
